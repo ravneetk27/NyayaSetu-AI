@@ -1,0 +1,38 @@
+POSH ACT AND POCSO ACT DETAILED INCIDENT CATEGORIES AND CLASSIFICATION GUIDE
+
+1. POSH ACT (WORKPLACE SEXUAL HARASSMENT) CATEGORIES
+Under Section 2(n) and Section 3 of the Protection of Women from Sexual Harassment at Workplace (POSH) Act, 2013.
+
+A. Quid Pro Quo Harassment
+Granting or withholding workplace benefits based on compliance with sexual demands.
+- Implicit/Explicit Promises: Promising promotions, salary hikes, bonus, favorable performance ratings, or career opportunities in exchange for sexual favors.
+- Threats to Employment: Threatening termination, bad appraisal reviews, demotion, job loss, or transfer if sexual advances are rejected.
+
+B. Hostile Work Environment
+Unwelcome conduct that creates an intimidating, offensive, hostile, or oppressive atmosphere at work.
+- Verbal Harassment: Sexually colored remarks, inappropriate jokes, intrusive questions about personal or sexual life, unwanted romantic proposals, or explicit comments on physical appearance.
+- Non-Verbal / Visual Harassment: Staring, leering, inappropriate gestures, displaying or emailing pornographic materials, sexually suggestive screensavers, wallpapers, or memes.
+- Physical Harassment: Unwanted physical contact, touching, invading personal space, blocking movement, uninvited cornering, or physical advances.
+- Digital / Hybrid Harassment: Sending inappropriate WhatsApp messages, late-night non-work calls, unwanted social media interactions, or sexual harassment via Slack, Teams, email, or video calls.
+
+C. Extended Workplace Scenarios
+- Off-Site / Remote Work: Incidents occurring during work travel, client meetings, corporate retreats, offsite events, official dinners, or company-provided transport.
+- Third-Party Involvements: Harassment involving vendors, interns, contractors, consultants, service providers, or clients.
+
+
+2. POCSO ACT (PROTECTION OF CHILDREN FROM SEXUAL OFFENCES) CATEGORIES
+Under Sections 3 to 15 of the POCSO Act, 2012 (Applies to anyone under 18 years of age).
+
+A. Physical Offences
+- Penetrative Sexual Assault (Sections 3 & 4): Non-consensual penetration of any body part or object into the child's body.
+- Non-Penetrative Sexual Assault (Sections 7 & 8): Touching private body parts of a child with sexual intent, or compelling a child to touch another person's body without penetration.
+- Aggravated Forms (Sections 5, 6, 9, 10): Offences committed by individuals in positions of trust or authority (e.g., teachers, family members, doctors, police officers, caretakers, school staff) or resulting in bodily harm, injury, or pregnancy.
+
+B. Non-Physical & Digital Offences
+- Sexual Harassment of a Minor (Sections 11 & 12):
+  * Uttering sexually explicit words, making sounds, or displaying objects with sexual intent to a child.
+  * Stalking or constantly watching a child physically, near school/home, or online.
+  * Inducing or forcing a child to exhibit their body.
+- Child Sexual Abuse Material / Pornography (CSAM) (Sections 13–15):
+  * Using a child for pornographic representation (real, simulated, digital, or AI-generated).
+  * Storage, possession, transmission, streaming, or commercial distribution of CSAM material.

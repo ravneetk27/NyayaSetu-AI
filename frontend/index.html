@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoSH/POCSO Legal Advisory AI Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <span class="logo-icon">⚖️</span>
+                <div class="logo-text">
+                    <h1>Legal Advisory AI</h1>
+                    <span class="subtitle">PoSH & POCSO Compliance Assistant</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="ingest-btn" class="btn btn-secondary">
+                    <span class="icon">🔄</span> Scan & Ingest Docs
+                </button>
+                <div id="ingest-status" class="status-indicator">Not Scanned</div>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="app-main">
+            <!-- Left Panel: Input & Documents -->
+            <section class="panel input-panel">
+                <div class="panel-header">
+                    <h2>1. Describe the Incident</h2>
+                    <p class="panel-desc">Describe the details of the incident. To protect privacy, all processing is done locally on your machine.</p>
+                </div>
+                <div class="panel-body">
+                    <textarea id="narrative-input" placeholder="Type or paste the incident narrative here. Include approximate dates, locations, roles, witnesses, or evidence if known..."></textarea>
+                    
+                    <div class="privacy-note">
+                        <span class="icon">🔒</span>
+                        <p>PII Anonymization active: Names, phone numbers, and emails are auto-replaced with placeholders during analysis and restored only in your final draft.</p>
+                    </div>
+
+                    <button id="analyze-btn" class="btn btn-primary btn-large">
+                        <span class="spinner" id="analyze-spinner"></span>
+                        <span id="analyze-btn-text">Analyze & Draft Complaint</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Panel: Output & Drafting -->
+            <section class="panel output-panel empty-state" id="output-panel">
+                <!-- Initial State -->
+                <div class="empty-view" id="empty-view">
+                    <div class="empty-icon">📄</div>
+                    <h3>No Analysis Loaded</h3>
+                    <p>Enter incident details and click "Analyze & Draft Complaint" to generate the classification, extracted facts, and drafted complaint.</p>
+                </div>
+
+                <!-- Analysis Results (Hidden by default) -->
+                <div class="analysis-view hidden" id="analysis-view">
+                    <!-- POCSO Mandatory Alert Banner -->
+                    <div id="pocso-alert" class="alert-banner hidden">
+                        <div class="alert-header">
+                            <span class="alert-icon">⚠️</span>
+                            <h3>POCSO MANDATORY REPORTING REQUIRED</h3>
+                        </div>
+                        <div class="alert-body">
+                            <p><strong>Warning:</strong> A minor appears to be involved in this incident. Under Section 19 of the Protection of Children from Sexual Offences (POCSO) Act, 2012, any person who has apprehension that a child sexual abuse has been committed is <strong>legally obligated</strong> to report it to the Special Juvenile Police Unit (SJPU) or the local Police.</p>
+                            <p class="emergency-contacts">Emergency Contacts: Local Police (100 / 112) or Childline (1098).</p>
+                        </div>
+                    </div>
+
+                    <!-- Tabs Header -->
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-tab="tab-summary">Classification & Facts</button>
+                        <button class="tab-btn" data-tab="tab-draft">Generated Draft</button>
+                        <button class="tab-btn" data-tab="tab-rag">Statutory Citations</button>
+                    </div>
+
+                    <!-- Tab Contents -->
+                    <div class="tabs-content">
+                        <!-- Tab 1: Summary -->
+                        <div class="tab-pane active" id="tab-summary">
+                            <div class="summary-grid">
+                                <!-- Classification Card -->
+                                <div class="card classification-card">
+                                    <h3>Classification Verdict</h3>
+                                    <div class="verdict-badge" id="verdict-category">-</div>
+                                    <div class="sub-category-text" id="verdict-subcategory" style="margin-top: 6px; font-weight: 600; font-size: 0.9rem; color: #4338ca;"></div>
+                                    <div class="confidence-bar-container">
+                                        <label>Confidence: <span id="verdict-confidence">0%</span></label>
+                                        <div class="confidence-bar"><div id="confidence-fill"></div></div>
+                                    </div>
+                                    <div class="rationale-text">
+                                        <strong>Rationale:</strong>
+                                        <p id="verdict-rationale">-</p>
+                                    </div>
+                                </div>
+
+                                <!-- Extracted Facts Card -->
+                                <div class="card facts-card">
+                                    <h3>Extracted Facts</h3>
+                                    <table class="facts-table">
+                                        <tr>
+                                            <th>Complainant Name</th>
+                                            <td id="fact-complainant">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Respondent Name</th>
+                                            <td id="fact-respondent">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Incident Date</th>
+                                            <td id="fact-date">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Location</th>
+                                            <td id="fact-location">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Nature of Incident</th>
+                                            <td id="fact-nature">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Witnesses</th>
+                                            <td id="fact-witnesses">-</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Evidence</th>
+                                            <td id="fact-evidence">-</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: Complaint Draft -->
+                        <div class="tab-pane" id="tab-draft">
+                            <div class="draft-container">
+                                <div class="draft-disclaimer" id="draft-disclaimer">
+                                    <strong>Legal Disclaimer:</strong> Generated with AI assistance. Review and edit before submitting.
+                                </div>
+                                <div class="draft-header-info">
+                                    <strong>Addressed To:</strong> <span id="draft-addressed-to">-</span>
+                                </div>
+                                <textarea id="draft-editor" class="draft-editor"></textarea>
+                                <div class="draft-actions">
+                                    <button id="export-btn" class="btn btn-success">
+                                        <span class="icon">📥</span> Export to Word (.docx)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 3: RAG -->
+                        <div class="tab-pane" id="tab-rag">
+                            <div class="rag-list" id="rag-snippets-list">
+                                <!-- Chunks populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>PoSH/POCSO Legal Assistant MVP • Running Locally on Ollama • Data is processed entirely in memory.</p>
+        </footer>
+    </div>
+    
+    <script src="js/app.js"></script>
+</body>
+</html>
