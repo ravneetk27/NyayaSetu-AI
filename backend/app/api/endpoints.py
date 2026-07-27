@@ -5,7 +5,9 @@ from app.schemas.case import (
     AnalyzeComplaintResponse, 
     IngestResponse,
     ComplaintDraft,
-    RetrievedContext
+    RetrievedContext,
+    ChatRequest,
+    ChatResponse
 )
 from app.core.anonymizer import Anonymizer
 from app.core.llm import OllamaClient
@@ -31,20 +33,44 @@ def ingest_documents():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
+@router.post("/chat", response_model=ChatResponse)
+def chat_with_assistant(request: ChatRequest):
+    """Real-time chat endpoint for empathetic legal guidance & quick-reply buttons."""
+    try:
+        msg_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
+        result = ollama_client.generate_chat_reply(msg_dicts)
+        return ChatResponse(
+            reply=result["reply"],
+            quick_replies=result["quick_replies"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat assistant failed: {str(e)}")
+
+
 @router.post("/analyze", response_model=AnalyzeComplaintResponse)
 def analyze_complaint(request: AnalyzeComplaintRequest):
     """
     Core pipeline:
-    1. Anonymize input (PII protection).
-    2. Classify (POSH, POCSO, OTHER).
-    3. Extract facts.
-    4. Retrieve legal guidelines via local vector search.
-    5. Draft formal complaint.
-    6. De-anonymize draft + facts back to real details for the user.
+    1. Extract narrative from raw_text or compile chat messages history.
+    2. Anonymize input (PII protection).
+    3. Classify (POSH, POCSO, OTHER).
+    4. Extract facts.
+    5. Retrieve legal guidelines via local vector search.
+    6. Draft formal complaint.
+    7. De-anonymize draft + facts back to real details for the user.
     """
-    raw_text = request.raw_text.strip()
+    raw_text = ""
+    is_chat_mode = False
+    if request.messages and len(request.messages) > 0:
+        is_chat_mode = True
+        msg_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
+        extracted_facts = ollama_client.extract_facts_from_chat(msg_dicts)
+        raw_text = f"{extracted_facts.complainant_name} {extracted_facts.nature_of_incident} {extracted_facts.incident_location}"
+    elif request.raw_text and request.raw_text.strip():
+        raw_text = request.raw_text.strip()
+    
     if not raw_text:
-        raise HTTPException(status_code=400, detail="Incident narrative cannot be empty.")
+        raise HTTPException(status_code=400, detail="Incident narrative or chat history cannot be empty.")
 
     try:
         # Step 1: Anonymize
@@ -54,8 +80,9 @@ def analyze_complaint(request: AnalyzeComplaintRequest):
         # Step 2: Classify
         classification = ollama_client.classify_narrative(anon_text)
 
-        # Step 3: Extract Facts
-        extracted_facts = ollama_client.extract_facts(anon_text)
+        # Step 3: Extract Facts (if not chat mode)
+        if not is_chat_mode:
+            extracted_facts = ollama_client.extract_facts(anon_text)
 
         # Step 4: RAG Retrieval
         # Search using nature of incident and category keywords

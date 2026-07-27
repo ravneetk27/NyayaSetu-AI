@@ -5,11 +5,31 @@ document.addEventListener("DOMContentLoaded", () => {
     // DOM Elements
     const ingestBtn = document.getElementById("ingest-btn");
     const ingestStatus = document.getElementById("ingest-status");
+    
+    // Mode toggling
+    const modeChatBtn = document.getElementById("mode-chat-btn");
+    const modeTextBtn = document.getElementById("mode-text-btn");
+    const chatModeView = document.getElementById("chat-mode-view");
+    const textModeView = document.getElementById("text-mode-view");
+
+    // Chat DOM Elements
+    const chatMessagesList = document.getElementById("chat-messages-list");
+    const quickRepliesWrapper = document.getElementById("quick-replies-wrapper");
+    const quickRepliesBar = document.getElementById("quick-replies-bar");
+    const welcomeChipsWrapper = document.getElementById("welcome-chips-wrapper");
+    const ageSelectWrapper = document.getElementById("age-select-wrapper");
+    const genderSelectWrapper = document.getElementById("gender-select-wrapper");
+    const chatInput = document.getElementById("chat-input");
+    const chatSendBtn = document.getElementById("chat-send-btn");
+    const compileChatBtn = document.getElementById("compile-chat-btn");
+
+    // Textarea DOM Elements
     const narrativeInput = document.getElementById("narrative-input");
     const analyzeBtn = document.getElementById("analyze-btn");
+
+    // Output & Analysis View Elements
     const analyzeBtnText = document.getElementById("analyze-btn-text");
     const analyzeSpinner = document.getElementById("analyze-spinner");
-    
     const outputPanel = document.getElementById("output-panel");
     const emptyView = document.getElementById("empty-view");
     const analysisView = document.getElementById("analysis-view");
@@ -38,6 +58,152 @@ document.addEventListener("DOMContentLoaded", () => {
     const ragSnippetsList = document.getElementById("rag-snippets-list");
 
     let currentAnalysisData = null;
+
+    // State Tracking Flags
+    let hasProvidedName = false;
+    let hasProvidedAge = false;
+
+    // Conversational Chat State
+    let chatMessages = [
+        {
+            role: "assistant",
+            content: "Hello, I am your AI Legal Assistant. Before we begin, could you please tell me your name?"
+        }
+    ];
+
+    // Mode Toggle Logic
+    modeChatBtn.addEventListener("click", () => {
+        modeChatBtn.classList.add("active");
+        modeTextBtn.classList.remove("active");
+        chatModeView.classList.remove("hidden");
+        textModeView.classList.add("hidden");
+    });
+
+    modeTextBtn.addEventListener("click", () => {
+        modeTextBtn.classList.add("active");
+        modeChatBtn.classList.remove("active");
+        textModeView.classList.remove("hidden");
+        chatModeView.classList.add("hidden");
+    });
+
+    // Render Chat Messages
+    function renderChatMessages() {
+        chatMessagesList.innerHTML = "";
+        chatMessages.forEach(msg => {
+            const msgDiv = document.createElement("div");
+            msgDiv.className = `chat-msg ${msg.role === "user" ? "user-msg" : "assistant-msg"}`;
+            
+            const avatar = document.createElement("div");
+            avatar.className = "msg-avatar";
+            avatar.textContent = msg.role === "user" ? "👤" : "🤖";
+
+            const content = document.createElement("div");
+            content.className = "msg-content";
+
+            // Format line breaks as paragraphs
+            const lines = msg.content.split("\n").filter(l => l.trim().length > 0);
+            lines.forEach(l => {
+                const p = document.createElement("p");
+                p.textContent = l;
+                content.appendChild(p);
+            });
+
+            msgDiv.appendChild(avatar);
+            msgDiv.appendChild(content);
+            chatMessagesList.appendChild(msgDiv);
+        });
+
+        // Scroll chat to bottom
+        chatMessagesList.scrollTop = chatMessagesList.scrollHeight;
+    }
+
+    // Attach listeners for initial welcome menu option chips
+    document.querySelectorAll(".welcome-chip").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const val = btn.getAttribute("data-value") || btn.textContent.trim();
+            if (welcomeChipsWrapper) welcomeChipsWrapper.classList.add("hidden");
+            sendUserChatMessage(val);
+        });
+    });
+
+    // Attach listeners for Age Select buttons
+    document.querySelectorAll(".age-chip").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const ageVal = btn.getAttribute("data-age") || btn.textContent.trim();
+            hasProvidedAge = true;
+            if (ageSelectWrapper) ageSelectWrapper.classList.add("hidden");
+            sendUserChatMessage(ageVal);
+        });
+    });
+
+    // Helper: Check if user input likely contains a name or responds to a name inquiry
+    function checkForNameInput(text) {
+        if (hasProvidedName) return true;
+        const low = text.trim().toLowerCase();
+        
+        // Simple greetings should not count as names
+        const greetings = ["hello", "hi", "hey", "good morning", "good evening", "namaste", "help"];
+        if (greetings.some(g => low === g || low === g + "." || low === g + "!")) {
+            return false;
+        }
+
+        // Any non-greeting input after assistant greeting is recognized as the name
+        return true;
+    }
+
+    // Send Chat Message Handler
+    async function sendUserChatMessage(text) {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+
+        // Push User Message
+        chatMessages.push({ role: "user", content: trimmed });
+        chatInput.value = "";
+        renderChatMessages();
+
+        // Check for Name detection state change
+        if (!hasProvidedName && checkForNameInput(trimmed)) {
+            hasProvidedName = true;
+            // Reveal Age Selection Box immediately when name is provided
+            if (ageSelectWrapper && !hasProvidedAge) ageSelectWrapper.classList.remove("hidden");
+        }
+
+        // Show assistant typing state
+        chatSendBtn.disabled = true;
+
+        try {
+            const response = await fetch(`${BASE_URL}/api/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: chatMessages })
+            });
+
+            if (!response.ok) throw new Error("Chat assistant error");
+
+            const data = await response.json();
+            chatMessages.push({ role: "assistant", content: data.reply });
+            renderChatMessages();
+        } catch (err) {
+            console.error(err);
+            chatMessages.push({
+                role: "assistant",
+                content: "I am having trouble connecting to the local LLM server. Please ensure Ollama is running."
+            });
+            renderChatMessages();
+        } finally {
+            chatSendBtn.disabled = false;
+        }
+    }
+
+    chatSendBtn.addEventListener("click", () => {
+        sendUserChatMessage(chatInput.value);
+    });
+
+    chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            sendUserChatMessage(chatInput.value);
+        }
+    });
 
     // 1. Ingest Documents Event
     ingestBtn.addEventListener("click", async () => {
@@ -69,26 +235,39 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // 2. Analyze narrative event
-    analyzeBtn.addEventListener("click", async () => {
+    // 2. Compile Chat to Draft Analysis Event
+    compileChatBtn.addEventListener("click", () => {
+        const userMsgs = chatMessages.filter(m => m.role === "user");
+        if (userMsgs.length === 0) {
+            alert("Please chat or select options to describe the incident before generating a draft.");
+            return;
+        }
+
+        runAnalysisPipeline({ messages: chatMessages });
+    });
+
+    // 3. Analyze narrative text event (Legacy text mode)
+    analyzeBtn.addEventListener("click", () => {
         const text = narrativeInput.value.trim();
         if (!text) {
             alert("Please enter a description of the incident first.");
             return;
         }
+        runAnalysisPipeline({ raw_text: text });
+    });
 
-        // Setup loading state
-        analyzeBtn.disabled = true;
+    // Core Analysis Pipeline Call
+    async function runAnalysisPipeline(payload) {
+        const activeBtn = modeChatBtn.classList.contains("active") ? compileChatBtn : analyzeBtn;
+        activeBtn.disabled = true;
         analyzeSpinner.style.display = "inline-block";
         analyzeBtnText.textContent = "Analyzing incident details...";
 
         try {
             const response = await fetch(`${BASE_URL}/api/analyze`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ raw_text: text })
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
             });
 
             if (!response.ok) {
@@ -105,11 +284,11 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error(error);
             alert(`Analysis failed: ${error.message}\nEnsure Ollama is running locally with llama3.2:1b.`);
         } finally {
-            analyzeBtn.disabled = false;
+            activeBtn.disabled = false;
             analyzeSpinner.style.display = "none";
-            analyzeBtnText.textContent = "Analyze & Draft Complaint";
+            analyzeBtnText.textContent = "✨ Convert Conversation into Draft Complaint";
         }
-    });
+    }
 
     // Render Analysis results
     function renderAnalysis(data) {
@@ -179,7 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
         draftEditor.value = data.draft.draft_text;
     }
 
-    // 3. Tab Toggling Logic
+    // Tab Toggling Logic
     tabBtns.forEach(btn => {
         btn.addEventListener("click", () => {
             tabBtns.forEach(b => b.classList.remove("active"));
@@ -191,7 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // 4. Export DOCX Event
+    // Export DOCX Event
     exportBtn.addEventListener("click", async () => {
         if (!currentAnalysisData) return;
 
@@ -199,13 +378,12 @@ document.addEventListener("DOMContentLoaded", () => {
         exportBtn.innerHTML = '<span class="spinner" style="display:inline-block"></span> Exporting...';
 
         try {
-            // Prepare modified draft data from user editor input
             const exportPayload = {
                 category: currentAnalysisData.draft.category,
                 addressed_to: currentAnalysisData.draft.addressed_to,
                 draft_text: draftEditor.value,
                 disclaimer: currentAnalysisData.draft.disclaimer,
-                citations: [] // Citations not needed in docx template
+                citations: []
             };
 
             const response = await fetch(`${BASE_URL}/api/export`, {

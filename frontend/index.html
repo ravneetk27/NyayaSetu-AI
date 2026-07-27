@@ -18,6 +18,7 @@
                     <span class="subtitle">PoSH & POCSO Compliance Assistant</span>
                 </div>
             </div>
+
             <div class="header-actions">
                 <button id="ingest-btn" class="btn btn-secondary">
                     <span class="icon">🔄</span> Scan & Ingest Docs
@@ -28,23 +29,60 @@
 
         <!-- Main Workspace -->
         <main class="app-main">
-            <!-- Left Panel: Input & Documents -->
+            <!-- Left Panel: Input & Interactive Chatbot -->
             <section class="panel input-panel">
                 <div class="panel-header">
                     <h2>1. Describe the Incident</h2>
-                    <p class="panel-desc">Describe the details of the incident. To protect privacy, all processing is done locally on your machine.</p>
+                    <div class="input-mode-toggle">
+                        <button id="mode-chat-btn" class="mode-btn active">💬 Conversational AI</button>
+                        <button id="mode-text-btn" class="mode-btn">📝 Direct Text Area</button>
+                    </div>
                 </div>
-                <div class="panel-body">
+                
+                <!-- Mode 1: Interactive Chatbot View (Default) -->
+                <div class="panel-body mode-view" id="chat-mode-view">
+                    <div class="chat-container">
+                        <!-- Message list -->
+                        <div class="chat-messages" id="chat-messages-list">
+                            <div class="chat-msg assistant-msg">
+                                <div class="msg-avatar">🤖</div>
+                                <div class="msg-content">
+                                    <p>Hello, I am your AI Legal Assistant. How can I help you?</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Age Selection Box (Triggers immediately after name is provided) -->
+                        <div class="age-select-wrapper hidden" id="age-select-wrapper">
+                            <span class="age-title">Please Select Your Age Group:</span>
+                            <div class="age-btn-bar">
+                                <button class="chip-btn age-chip" data-age="Under 18 (Minor - POCSO)">Under 18 (Minor - POCSO)</button>
+                                <button class="chip-btn age-chip" data-age="18 or Above (Adult - PoSH)">18 or Above (Adult - PoSH)</button>
+                            </div>
+                        </div>
+
+                        <!-- Chat Input Box -->
+                        <div class="chat-input-row">
+                            <input type="text" id="chat-input" placeholder="Type your message line-by-line..." autocomplete="off">
+                            <button id="chat-send-btn" class="btn btn-primary">Send</button>
+                        </div>
+
+                        <!-- Action Footer -->
+                        <div class="chat-footer-row">
+                            <button id="compile-chat-btn" class="btn btn-primary btn-large">
+                                <span class="spinner" id="analyze-spinner"></span>
+                                <span id="analyze-btn-text">✨ Convert Conversation into Draft Complaint</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mode 2: Direct Text View (Legacy) -->
+                <div class="panel-body mode-view hidden" id="text-mode-view">
                     <textarea id="narrative-input" placeholder="Type or paste the incident narrative here. Include approximate dates, locations, roles, witnesses, or evidence if known..."></textarea>
                     
-                    <div class="privacy-note">
-                        <span class="icon">🔒</span>
-                        <p>PII Anonymization active: Names, phone numbers, and emails are auto-replaced with placeholders during analysis and restored only in your final draft.</p>
-                    </div>
-
                     <button id="analyze-btn" class="btn btn-primary btn-large">
-                        <span class="spinner" id="analyze-spinner"></span>
-                        <span id="analyze-btn-text">Analyze & Draft Complaint</span>
+                        <span id="text-analyze-btn-text">Analyze & Draft Complaint</span>
                     </button>
                 </div>
             </section>
@@ -164,10 +202,6 @@
                 </div>
             </section>
         </main>
-
-        <footer class="app-footer">
-            <p>PoSH/POCSO Legal Assistant MVP • Running Locally on Ollama • Data is processed entirely in memory.</p>
-        </footer>
     </div>
     
     <script src="js/app.js"></script>

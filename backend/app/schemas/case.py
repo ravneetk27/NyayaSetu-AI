@@ -29,8 +29,20 @@ class ComplaintDraft(BaseModel):
     disclaimer: str
     citations: List[RetrievedContext] = Field(default_factory=list)
 
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+
+class ChatResponse(BaseModel):
+    reply: str
+    quick_replies: List[str] = Field(default_factory=list)
+
 class AnalyzeComplaintRequest(BaseModel):
-    raw_text: str
+    raw_text: Optional[str] = None
+    messages: Optional[List[ChatMessage]] = None
 
 class AnalyzeComplaintResponse(BaseModel):
     classification: ClassificationResult
@@ -42,3 +54,4 @@ class IngestResponse(BaseModel):
     status: str
     processed_files: List[str]
     total_chunks: int
+
