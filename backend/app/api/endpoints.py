@@ -7,10 +7,12 @@ from app.schemas.case import (
     ComplaintDraft,
     RetrievedContext,
     ChatRequest,
-    ChatResponse
+    ChatResponse,
+    ExtractedFacts,
+    AgentResponsePayload
 )
 from app.core.anonymizer import Anonymizer
-from app.core.llm import OllamaClient
+from app.core.llm import OllamaClient, OUT_OF_SCOPE_MESSAGE
 from app.core.rag import LegalRAG
 from app.core.exporter import export_to_docx
 import io
@@ -35,17 +37,48 @@ def ingest_documents():
 
 @router.post("/chat", response_model=ChatResponse)
 def chat_with_assistant(request: ChatRequest):
-    """Real-time chat endpoint for empathetic legal guidance & quick-reply buttons."""
+    """Real-time chat endpoint for empathetic legal guidance & statutory FAQs."""
     try:
         msg_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
-        result = ollama_client.generate_chat_reply(msg_dicts)
+        user_msgs = [m['content'].strip() for m in msg_dicts if m['role'] == 'user']
+        last_user_msg = user_msgs[-1] if user_msgs else ""
+        
+        # Check domain relevance
+        is_relevant = ollama_client.check_domain_relevance(last_user_msg)
+        if not is_relevant:
+            payload = ollama_client.build_agent_response_payload(
+                is_relevant=False,
+                action_triggered="ADVISE",
+                advice_response=OUT_OF_SCOPE_MESSAGE,
+                facts=ExtractedFacts(nature_of_incident="Out of scope query")
+            )
+            return ChatResponse(
+                reply=OUT_OF_SCOPE_MESSAGE,
+                quick_replies=[],
+                payload=payload
+            )
+
+        # Vector DB search for statutory FAQs if applicable
+        rag_results = rag_engine.search(last_user_msg, top_k=2) if last_user_msg else []
+        result = ollama_client.generate_chat_reply(msg_dicts, rag_context=rag_results)
+        
+        extracted_facts = ollama_client.extract_facts_from_chat(msg_dicts)
+
+        payload = ollama_client.build_agent_response_payload(
+            is_relevant=result.get("is_posh_pocso_relevant", True),
+            action_triggered=request.action_triggered or "ADVISE",
+            advice_response=result["reply"],
+            facts=extracted_facts,
+            formatted_draft=""
+        )
+
         return ChatResponse(
             reply=result["reply"],
-            quick_replies=result["quick_replies"]
+            quick_replies=result.get("quick_replies", []),
+            payload=payload
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat assistant failed: {str(e)}")
-
 
 @router.post("/analyze", response_model=AnalyzeComplaintResponse)
 def analyze_complaint(request: AnalyzeComplaintRequest):
@@ -56,7 +89,7 @@ def analyze_complaint(request: AnalyzeComplaintRequest):
     3. Classify (POSH, POCSO, OTHER).
     4. Extract facts.
     5. Retrieve legal guidelines via local vector search.
-    6. Draft formal complaint.
+    6. Draft formal complaint in standard 8-section template format.
     7. De-anonymize draft + facts back to real details for the user.
     """
     raw_text = ""
@@ -72,6 +105,9 @@ def analyze_complaint(request: AnalyzeComplaintRequest):
     if not raw_text:
         raise HTTPException(status_code=400, detail="Incident narrative or chat history cannot be empty.")
 
+    # Domain relevance check across full text
+    is_relevant = ollama_client.check_domain_relevance(raw_text)
+
     try:
         # Step 1: Anonymize
         anonymizer = Anonymizer()
@@ -80,12 +116,44 @@ def analyze_complaint(request: AnalyzeComplaintRequest):
         # Step 2: Classify
         classification = ollama_client.classify_narrative(anon_text)
 
+        if classification.category == "OTHER":
+            empty_facts = ExtractedFacts(
+                complainant_name="[Not Applicable]",
+                complainant_age="[Not Applicable]",
+                respondent_name="[Not Applicable]",
+                incident_date="[Not Applicable]",
+                incident_location="[Not Applicable]",
+                nature_of_incident="Out of scope query",
+                witnesses=[],
+                evidence_description=[]
+            )
+            draft = ComplaintDraft(
+                category="OTHER",
+                addressed_to="[Not Applicable]",
+                draft_text="Complaint drafting is not applicable for out-of-scope incidents.",
+                disclaimer="[Not Applicable]",
+                citations=[]
+            )
+            payload = ollama_client.build_agent_response_payload(
+                is_relevant=False,
+                action_triggered="GENERATE_DRAFT",
+                advice_response=OUT_OF_SCOPE_MESSAGE,
+                facts=empty_facts,
+                formatted_draft=""
+            )
+            return AnalyzeComplaintResponse(
+                classification=classification,
+                extracted_facts=empty_facts,
+                draft=draft,
+                mandatory_report_alert=False,
+                payload=payload
+            )
+
         # Step 3: Extract Facts (if not chat mode)
         if not is_chat_mode:
             extracted_facts = ollama_client.extract_facts(anon_text)
 
         # Step 4: RAG Retrieval
-        # Search using nature of incident and category keywords
         search_query = f"{extracted_facts.nature_of_incident} {classification.category.lower()}"
         retrieved_results = rag_engine.search(search_query, top_k=3)
         
@@ -106,31 +174,38 @@ def analyze_complaint(request: AnalyzeComplaintRequest):
         )
 
         # Step 6: De-anonymize
-        # Restore complainant and respondent names in extracted facts
         if extracted_facts.complainant_name:
             extracted_facts.complainant_name = anonymizer.deanonymize(extracted_facts.complainant_name, pii_map)
         if extracted_facts.respondent_name:
             extracted_facts.respondent_name = anonymizer.deanonymize(extracted_facts.respondent_name, pii_map)
-            
-        # Restore locations or other details
+        if extracted_facts.respondent_designation:
+            extracted_facts.respondent_designation = anonymizer.deanonymize(extracted_facts.respondent_designation, pii_map)
         if extracted_facts.incident_location:
             extracted_facts.incident_location = anonymizer.deanonymize(extracted_facts.incident_location, pii_map)
+        if extracted_facts.incident_time:
+            extracted_facts.incident_time = anonymizer.deanonymize(extracted_facts.incident_time, pii_map)
             
-        # Restore witnesses & evidence list
         extracted_facts.witnesses = [anonymizer.deanonymize(w, pii_map) for w in extracted_facts.witnesses]
         extracted_facts.evidence_description = [anonymizer.deanonymize(e, pii_map) for e in extracted_facts.evidence_description]
 
-        # Restore draft text
         draft.draft_text = anonymizer.deanonymize(draft.draft_text, pii_map)
 
-        # Mandatory reporting trigger check (POCSO or minor involved flag)
         mandatory_report = (classification.category == "POCSO") or classification.minor_involved
+
+        payload = ollama_client.build_agent_response_payload(
+            is_relevant=is_relevant,
+            action_triggered="GENERATE_DRAFT",
+            advice_response="Formal complaint draft generated successfully under POSH/POCSO guidelines.",
+            facts=extracted_facts,
+            formatted_draft=draft.draft_text
+        )
 
         return AnalyzeComplaintResponse(
             classification=classification,
             extracted_facts=extracted_facts,
             draft=draft,
-            mandatory_report_alert=mandatory_report
+            mandatory_report_alert=mandatory_report,
+            payload=payload
         )
 
     except Exception as e:

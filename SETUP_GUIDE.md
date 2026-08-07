@@ -28,10 +28,10 @@ Download and install Ollama from [https://ollama.ai](https://ollama.ai).
 Open a terminal and run:
 
 ```bash
-ollama pull llama3.2:1b
+ollama pull llama3.1:8b
 ```
 
-> **Note:** The default model is `llama3.2:1b` (lightweight, runs on CPU). You can use a larger model like `llama3.2:3b` or `qwen3:4b` for better quality — just update the `LLM_MODEL` environment variable (see [Configuration](#configuration) below).
+> **Note:** The default model is `llama3.1:8b` (8 billion parameters). You can use a different model — just update the `LLM_MODEL` environment variable (see [Configuration](#configuration) below).
 
 ### 1.3 Verify Ollama is Running
 
@@ -39,7 +39,7 @@ ollama pull llama3.2:1b
 ollama list
 ```
 
-You should see `llama3.2:1b` in the list. Ollama serves on `http://localhost:11434` by default.
+You should see `llama3.1:8b` in the list. Ollama serves on `http://localhost:11434` by default.
 
 ---
 
@@ -193,7 +193,7 @@ All configuration is in `backend/app/config.py` and can be overridden via enviro
 | Variable | Default | Description |
 |---|---|---|
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
-| `LLM_MODEL` | `llama3.2:1b` | Ollama model name |
+| `LLM_MODEL` | `llama3.1:8b` | Ollama model name |
 | `EMBEDDING_MODEL_NAME` | `sentence-transformers/all-MiniLM-L6-v2` | HuggingFace embedding model |
 
 **Example — using a different model:**

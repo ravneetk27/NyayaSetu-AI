@@ -24,7 +24,7 @@ try:
         models = [m["name"] for m in response.json().get("models", [])]
         print(f"[SUCCESS] Connected to Ollama. Installed models: {', '.join(models)}")
         
-        target_model = "llama3.2:1b"
+        target_model = "llama3.1:8b"
         if any(target_model in m for m in models):
             print(f"[SUCCESS] '{target_model}' model is pulled and ready.")
         else:

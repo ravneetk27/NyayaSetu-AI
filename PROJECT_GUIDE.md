@@ -115,7 +115,7 @@ draft_agent/
 |---|---|---|
 | **Frontend** | Vanilla HTML/CSS/JS | Single-page UI with dark theme |
 | **Backend** | FastAPI + Uvicorn | REST API server |
-| **LLM** | Ollama (`llama3.2:1b`) | Classification, fact extraction, narrative polishing |
+| **LLM** | Ollama (`llama3.1:8b`) | Classification, fact extraction, narrative polishing |
 | **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` | Local embedding model for RAG |
 | **Vector Store** | In-memory NumPy | Cosine similarity search over document chunks |
 | **PDF Parsing** | PyPDF | Extract text from legal act PDFs |
@@ -277,7 +277,7 @@ A single-page application with:
 
 ### Why Deterministic Templates Instead of LLM-Generated Complaints?
 
-The `llama3.2:1b` model is lightweight enough to run on CPU, but has two critical limitations:
+The `llama3.1:8b` model is highly capable, but has two critical limitations:
 
 1. **Safety filter refusals** — The model refuses to draft complaints about harassment or child abuse, responding with *"I cannot create a formal complaint that includes details about sexual harassment."*
 

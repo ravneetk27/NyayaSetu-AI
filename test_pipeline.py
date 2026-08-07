@@ -14,31 +14,41 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
-print("=== STARTING BACKEND FOR TESTING ===")
-# Use files instead of PIPEs to avoid Windows buffer deadlock
-out_file = open("test_server_out.log", "w", encoding="utf-8")
-err_file = open("test_server_err.log", "w", encoding="utf-8")
+server_already_running = False
+try:
+    resp = requests.get("http://127.0.0.1:8000/docs", timeout=2)
+    if resp.status_code == 200:
+        server_already_running = True
+        print("[INFO] Server is already running on port 8000. Skipping server startup.")
+except Exception:
+    pass
 
-server_process = subprocess.Popen(
-    [sys.executable, "backend/run.py"],
-    stdout=out_file,
-    stderr=err_file,
-    text=True
-)
+if not server_already_running:
+    print("=== STARTING BACKEND FOR TESTING ===")
+    # Use files instead of PIPEs to avoid Windows buffer deadlock
+    out_file = open("test_server_out.log", "w", encoding="utf-8")
+    err_file = open("test_server_err.log", "w", encoding="utf-8")
 
-# Wait for server to start
-print("Waiting for server to start (15s)...")
-for i in range(15):
-    print(f"Waiting... {15-i}s remaining")
-    time.sleep(1)
-    if server_process.poll() is not None:
-        print(f"[FAIL] Server exited early with code {server_process.returncode}")
-        out_file.close()
-        err_file.close()
-        with open("test_server_err.log", "r", encoding="utf-8") as f:
-            print("STDERR Logs:")
-            print(f.read())
-        sys.exit(1)
+    server_process = subprocess.Popen(
+        [sys.executable, "backend/run.py"],
+        stdout=out_file,
+        stderr=err_file,
+        text=True
+    )
+
+    # Wait for server to start
+    print("Waiting for server to start (15s)...")
+    for i in range(15):
+        print(f"Waiting... {15-i}s remaining")
+        time.sleep(1)
+        if server_process.poll() is not None:
+            print(f"[FAIL] Server exited early with code {server_process.returncode}")
+            out_file.close()
+            err_file.close()
+            with open("test_server_err.log", "r", encoding="utf-8") as f:
+                print("STDERR Logs:")
+                print(f.read())
+            sys.exit(1)
 
 url_base = "http://127.0.0.1:8000"
 
@@ -138,11 +148,15 @@ except Exception as e:
         pass
     sys.exit(1)
 finally:
-    print("Stopping test server...")
-    server_process.terminate()
-    server_process.wait()
-    try:
-        out_file.close()
-        err_file.close()
-    except:
-        pass
+    if not server_already_running:
+        print("Stopping test server...")
+        try:
+            server_process.terminate()
+            server_process.wait()
+        except:
+            pass
+        try:
+            out_file.close()
+            err_file.close()
+        except:
+            pass

@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 from app.config import LEGAL_SOURCES_DIR, DATA_DIR, EMBEDDING_MODEL_NAME
@@ -94,11 +94,23 @@ class LegalRAG:
                 # Chunking strategy: split by double newlines or sections, fallback to paragraph groupings
                 paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
                 
-                # Combine paragraphs to target ~800 characters per chunk
+                # Combine paragraphs to target ~600-800 characters per chunk while keeping Q&A blocks intact
                 current_chunk = []
                 current_length = 0
                 
                 for para in paragraphs:
+                    if para.startswith("Query:") and current_chunk:
+                        # Flush existing chunk when encountering a new Query if length is sufficient
+                        if current_length >= 400:
+                            chunk_text = "\n\n".join(current_chunk)
+                            new_chunks.append(DocumentChunk(
+                                text=chunk_text,
+                                source=file_path.name,
+                                chunk_id=len(new_chunks)
+                            ))
+                            current_chunk = []
+                            current_length = 0
+
                     current_chunk.append(para)
                     current_length += len(para)
                     
@@ -132,12 +144,32 @@ class LegalRAG:
         
         return processed_files, len(self.chunks)
 
-    def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+    def search(self, query: str, top_k: int = 3, category: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Embed the query and return the top_k most similar legal chunks
-        using cosine similarity.
+        using cosine similarity, optionally filtered by domain category.
         """
         if not self.chunks or self.embeddings is None:
+            return []
+
+        # Filter indices by category if specified
+        valid_indices = []
+        for idx, chunk in enumerate(self.chunks):
+            src_lower = chunk.source.lower()
+            if category == "POSH":
+                # Exclude POCSO-only source documents
+                if "pocso" in src_lower and "posh" not in src_lower:
+                    continue
+                valid_indices.append(idx)
+            elif category == "POCSO":
+                # Exclude POSH-only source documents
+                if "posh" in src_lower and "pocso" not in src_lower:
+                    continue
+                valid_indices.append(idx)
+            else:
+                valid_indices.append(idx)
+
+        if not valid_indices:
             return []
 
         # Embed query
@@ -145,22 +177,27 @@ class LegalRAG:
 
         # Calculate cosine similarity: (A . B) / (||A|| * ||B||)
         norm_query = np.linalg.norm(query_vector)
-        norm_embeddings = np.linalg.norm(self.embeddings, axis=1)
+        
+        # Filter embeddings and chunks based on category filter
+        filtered_embeddings = self.embeddings[valid_indices]
+        norm_embeddings = np.linalg.norm(filtered_embeddings, axis=1)
         
         # Guard against zero norm
         if norm_query == 0:
             return []
         
-        dot_product = np.dot(self.embeddings, query_vector)
+        dot_product = np.dot(filtered_embeddings, query_vector)
         similarities = dot_product / (norm_embeddings * norm_query)
 
         # Sort similarities in descending order
-        top_indices = np.argsort(similarities)[::-1][:top_k]
+        top_k_actual = min(top_k, len(valid_indices))
+        top_filtered_indices = np.argsort(similarities)[::-1][:top_k_actual]
 
         results = []
-        for idx in top_indices:
-            score = float(similarities[idx])
-            chunk = self.chunks[idx]
+        for f_idx in top_filtered_indices:
+            score = float(similarities[f_idx])
+            actual_idx = valid_indices[f_idx]
+            chunk = self.chunks[actual_idx]
             results.append({
                 "source": chunk.source,
                 "text_snippet": chunk.text,
