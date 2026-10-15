@@ -310,28 +310,53 @@ class OllamaClient:
     def _extract_facts_via_llm(self, text: str) -> Dict[str, Any]:
         """Invoke Ollama in JSON mode for LLM-based structured fact extraction using strict compliance guidelines."""
         system_prompt = (
-            "You are a legal assistant specializing in POSH and POCSO fact extraction. Your task is to extract incident facts from the description and return them in a flat JSON structure.\n"
+            "You are a legal assistant specializing in POSH and POCSO fact extraction. "
+            "Your task is to extract incident facts from the description and return them in a flat JSON structure.\n\n"
             "Strict Compliance Rules:\n"
-            "1. 'respondent_name': Identify the person performing the alleged misconduct. Search for names associated with phrases like 'against', 'my manager', 'my supervisor', 'my team lead', 'accused', 'respondent', 'Mr.', 'Ms.', 'named', 'called'. If the respondent's name is NOT mentioned but their role/designation (e.g. 'Team Lead', 'Manager') is mentioned, set this to 'Unknown'. Only set to null if absolutely no respondent information is present.\n"
-            "2. 'respondent_designation': Extract the respondent's job role/designation (e.g., Team Lead, Manager, Supervisor, Bus Driver) if mentioned in the description. Otherwise set to null.\n"
-            "3. 'incident_date': Extract the date of the incident (e.g., '18 July 2026', 'yesterday') if mentioned, or null.\n"
-            "4. 'incident_time': Extract the time of the incident (e.g., '3:30 PM') if mentioned, or null.\n"
-            "5. 'incident_location': Identify the workplace, organization, company name (e.g. 'Open Hand Private Limited'), office, cabin, conference room, school name, classroom, cafeteria, or location where it occurred. If only the company/organization is mentioned, use it as the location. Only return null when absolutely no location-related info exists.\n"
-            "6. 'nature_of_incident': Generate a concise, factual, professional legal summary of the incident (exactly 2-4 sentences, 50-100 words). It MUST summarize what happened, who committed the act, the impact on the complainant, and the workplace context. Do NOT copy the user's complete narrative or repeat personal details like email/phone/address.\n"
-            "7. 'witnesses': Extract names of witnesses (e.g., 'Priya', 'Rahul') or groups/observers (e.g., 'Three Team Members', 'HR Staff') who saw or were present during the incident. Return an empty list [] if no witnesses are mentioned.\n"
-            "8. 'evidence_description': List of evidence mentioned (e.g., emails, WhatsApp messages) or empty list [] if none.\n"
-            "\n"
+            "1. 'respondent_name': Identify the person performing the alleged misconduct. Search for names associated "
+            "with phrases like 'against', 'my manager', 'my supervisor', 'my team lead', 'accused', 'respondent', "
+            "'Mr.', 'Ms.', 'named', 'called'. If the respondent's name is NOT mentioned but their role/designation "
+            "(e.g. 'Team Lead', 'Manager') is mentioned, set this to 'Unknown'. Only set to null if absolutely no "
+            "respondent information is present.\n"
+            "2. 'respondent_designation': Extract the respondent's job role/designation (e.g., Team Lead, Manager, "
+            "Supervisor, Bus Driver) if mentioned. Otherwise null.\n"
+            "3. 'incident_date': Extract the FULL date including year whenever possible (e.g., '18 July 2026', "
+            "'Oct 12 2026'). If the year is not stated, extract what is given and append '(year unspecified)'. "
+            "Capture relative references too (e.g. 'yesterday', 'last Monday', 'last week'). Return null only when "
+            "absolutely no date reference exists.\n"
+            "4. 'incident_time': Extract the time of the incident. Do NOT return null for qualitative time windows — "
+            "capture expressions like 'lunch break', 'after office hours', 'morning standup', 'during the commute', "
+            "'midnight', 'late evening', 'after-hours', 'during lunch', 'end of day'. Return exact clock times "
+            "(e.g., '3:30 PM') when given, otherwise return the qualitative window as-is. Return null only when "
+            "absolutely no time reference exists.\n"
+            "5. 'incident_location': Identify the workplace, organization, company name, office, cabin, conference "
+            "room, school name, classroom, cafeteria, or location. If only the company/organization is mentioned, "
+            "use it as the location. Only return null when absolutely no location-related info exists.\n"
+            "6. 'nature_of_incident': Generate a concise, factual, professional legal summary (2-4 sentences, "
+            "50-100 words). CRITICAL: Do NOT use generic phrases like 'workplace harassment' or 'inappropriate "
+            "behaviour'. Instead, name the SPECIFIC alleged acts, e.g. 'unwanted physical touching', "
+            "'verbal sexual remarks', 'displaying explicit material', 'quid pro quo demand for sexual favours'. "
+            "Reference the applicable legal definitions under the PoSH Act, 2013 (Section 2(n)) or POCSO Act, 2012 "
+            "(Section 7/11) where appropriate. Include who committed the act, the context, and the impact.\n"
+            "7. 'witnesses': Extract ANY individual who was present at the scene, heard, or saw the incident — even "
+            "if the word 'witness' is never used. Look for context clues: 'was present', 'was there', 'saw it', "
+            "'heard this', 'along with [Name]', 'in front of [Name]', 'other colleagues were present', "
+            "'[Name] also noticed', '[Name] saw', '[Name] heard'. Include named individuals AND described groups "
+            "(e.g., 'Three Team Members', 'HR Staff'). Return [] ONLY if no third party or bystander is mentioned "
+            "anywhere in the narrative.\n"
+            "8. 'evidence_description': List of evidence mentioned (e.g., emails, WhatsApp messages, CCTV footage, "
+            "call logs) or empty list [] if none.\n\n"
             "JSON Format:\n"
             "{\n"
             '  "complainant_name": "Name of complainant or null",\n'
             '  "complainant_age": "Age/DOB or null",\n'
             '  "respondent_name": "Name of accused, or \'Unknown\', or null",\n'
             '  "respondent_designation": "Designation/role or null",\n'
-            '  "incident_date": "Date or null",\n'
-            '  "incident_time": "Time or null",\n'
+            '  "incident_date": "Full date with year (e.g. \'18 July 2026\') or null",\n'
+            '  "incident_time": "Clock time (e.g. \'3:30 PM\') or qualitative window (e.g. \'lunch break\') or null",\n'
             '  "incident_location": "Location or null",\n'
-            '  "nature_of_incident": "Concise legal summary (2-4 sentences, 50-100 words)",\n'
-            '  "witnesses": ["Witness names/groups list"],\n'
+            '  "nature_of_incident": "Specific acts summary (2-4 sentences, 50-100 words)",\n'
+            '  "witnesses": ["Names or group descriptions of anyone present/who saw/heard the incident"],\n'
             '  "evidence_description": ["Evidence description list"]\n'
             "}"
         )
@@ -491,21 +516,78 @@ class OllamaClient:
         elif not resp_name:
             resp_name = "Unknown"
 
-        # 5. Incident Date
+        # 5. Incident Date — always capture full date with year (req 2)
         inc_date = _to_str(facts.get("incident_date"))
         if not inc_date:
-            date_match = re.search(r'\b(?:on|date|during|in)\s+(\d{1,2}\s+[A-Za-z]+|[A-Za-z]+\s+\d{1,2}|yesterday|last week|recent days|\d{1,2}/\d{1,2}/\d{2,4})', text, re.IGNORECASE)
-            inc_date = date_match.group(1).title() if date_match else None
+            # Try full date with year first (e.g. "18 July 2026", "Oct 12, 2026", "12/10/2026")
+            date_match = re.search(
+                r'\b(\d{1,2}[\s/-][A-Za-z]+[\s/-]\d{2,4}'
+                r'|[A-Za-z]+[\s/-]\d{1,2}[,\s/-]+\d{4}'
+                r'|\d{1,2}/\d{1,2}/\d{2,4}'
+                r'|\d{4}-\d{2}-\d{2})\b',
+                text, re.IGNORECASE
+            )
+            if date_match:
+                inc_date = date_match.group(1).strip()
+            else:
+                # Partial date without year (e.g. "Oct 12", "18 July")
+                partial = re.search(
+                    r'\b(?:on|date|during|since)\s+'
+                    r'((?:\d{1,2}\s+)?(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?'
+                    r'|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)'
+                    r'(?:\s+\d{1,2})?)',
+                    text, re.IGNORECASE
+                )
+                if partial:
+                    inc_date = partial.group(1).strip() + " (year unspecified)"
+                else:
+                    # Relative references
+                    rel = re.search(
+                        r'\b(yesterday|last\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|week|month))\b',
+                        text, re.IGNORECASE
+                    )
+                    inc_date = rel.group(1).title() if rel else None
         else:
-            inc_date = inc_date.title()
+            # Normalise LLM-returned date — preserve year if already present
+            inc_date = re.sub(r'\(year unspecified\)', '(year unspecified)', inc_date.strip())
+            # Title-case only the textual parts, keep digits and punctuation
+            inc_date = re.sub(
+                r'([A-Za-z]+)',
+                lambda m: m.group(1).capitalize(),
+                inc_date
+            )
 
-        # 6. Incident Time
+        # 6. Incident Time — qualitative windows accepted (req 2)
+        _QUALITATIVE_TIMES = [
+            "lunch break", "during lunch", "lunch hour",
+            "after office hours", "after-hours", "after hours",
+            "morning standup", "morning stand-up", "morning meeting",
+            "during the commute", "during commute", "commute",
+            "midnight", "late evening", "late night", "end of day",
+            "early morning", "before office hours", "after work",
+            "during break", "tea break", "post work",
+        ]
         inc_time = _to_str(facts.get("incident_time"))
         if not inc_time:
-            time_match = re.search(r'\b(?:at|around|time)\s+(\d{1,2}(?::\d{2})?\s*(?:PM|AM|pm|am))', text, re.IGNORECASE)
-            inc_time = time_match.group(1).upper() if time_match else None
+            # Exact clock time
+            time_match = re.search(
+                r'\b(?:at|around|approximately|~)?\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))\b',
+                text, re.IGNORECASE
+            )
+            if time_match:
+                inc_time = time_match.group(1).upper()
+            else:
+                # Qualitative window — search longest first to avoid partial matches
+                for qt in sorted(_QUALITATIVE_TIMES, key=len, reverse=True):
+                    if re.search(re.escape(qt), text, re.IGNORECASE):
+                        inc_time = qt.title()
+                        break
         else:
-            inc_time = inc_time.upper()
+            # If LLM returned a qualitative phrase, preserve it; if clock time, upper-case it
+            if re.search(r'\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)', inc_time):
+                inc_time = inc_time.upper()
+            else:
+                inc_time = inc_time.strip()  # preserve qualitative as-is
 
         # 7. Incident Location
         inc_loc = _to_str(facts.get("incident_location"))
@@ -531,7 +613,7 @@ class OllamaClient:
             if inc_loc.lower() == "hr cabin":
                 inc_loc = "HR Cabin"
 
-        # 8. Witnesses
+        # 8. Witnesses — broad extraction including implicit presence cues (req 1)
         witnesses = []
         wit_val = facts.get("witnesses")
         if isinstance(wit_val, list):
@@ -540,55 +622,121 @@ class OllamaClient:
             witnesses = [w.strip() for w in wit_val.split(",") if w.strip()]
 
         if not witnesses:
-            wit_match_names = re.search(r'\b(?:colleagues|colleague|present|witnessed by|witnesses)\s+([A-Z][a-z]+(?:\s+and\s+|\s*,\s*)(?:[A-Z][a-z]+)+)', text)
+            # Pattern A: explicit named witness pairs/lists ("colleagues Priya and Rahul", "witnessed by Anjali, Deepak")
+            wit_match_names = re.search(
+                r'\b(?:witnessed by|in presence of|in front of|along with|with|colleagues?|co-workers?)\s+'
+                r'([A-Z][a-z]+(?:\s+(?:and|&)\s+[A-Z][a-z]+|\s*,\s*[A-Z][a-z]+)+)',
+                text
+            )
             if wit_match_names:
                 names_str = wit_match_names.group(1)
-                witnesses = [w.strip().title() for w in re.split(r'\band\b|,', names_str) if w.strip()]
-            else:
-                wit_match_group = re.search(r'\b(?:in front of|witnessed by|saw|observed by)\s+(?:the\s+)?(\d+|three|two|four|five|several|some)?\s*(team members|colleagues|employees|HR manager|HR staff|supervisor|bystanders|staff)\b', text, re.IGNORECASE)
-                if wit_match_group:
-                    group_text = wit_match_group.group(0)
-                    group_clean = re.sub(r'^(?:in front of|witnessed by|saw|observed by)\s+(?:the\s+)?', '', group_text, flags=re.IGNORECASE).strip().title()
-                    if group_clean:
-                        witnesses = [group_clean]
-                else:
-                    wit_match_subj = re.search(r'\b([A-Z][a-zA-Z\s]+)\s+(?:witnessed|saw|observed)\b', text)
-                    if wit_match_subj:
-                        subj = wit_match_subj.group(1).strip()
-                        subj_clean = re.sub(r'^(?:the|a|my|our)\s+', '', subj, flags=re.IGNORECASE).strip().title()
-                        if subj_clean and subj_clean.lower() not in ["i", "he", "she", "they", "we", "complainant", "victim", "respondent"]:
-                            witnesses = [subj_clean]
+                witnesses = [w.strip().title() for w in re.split(r'\band\b|&|,', names_str) if w.strip()]
 
+        if not witnesses:
+            # Pattern B: group descriptors ("in front of three colleagues", "saw by HR staff")
+            wit_match_group = re.search(
+                r'\b(?:in front of|witnessed by|saw|observed by|in presence of|noticed by)\s+'
+                r'(?:the\s+)?(\d+|two|three|four|five|several|some|a few|many|other)?\s*'
+                r'(team members?|colleagues?|co-workers?|employees?|HR manager|HR staff|'
+                r'supervisor|bystanders?|staff|people|persons?|others?)\b',
+                text, re.IGNORECASE
+            )
+            if wit_match_group:
+                qty   = (wit_match_group.group(1) or "").strip()
+                group = wit_match_group.group(2).strip().title()
+                witnesses = [(f"{qty.title()} {group}").strip() if qty else group]
+
+        if not witnesses:
+            # Pattern C: subject-verb — "[Name] witnessed", "[Name] saw", "[Name] heard"
+            wit_subj = re.search(
+                r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:witnessed|saw|observed|heard|noticed)\b',
+                text
+            )
+            if wit_subj:
+                subj = re.sub(r'^(?:the|a|my|our)\s+', '', wit_subj.group(1), flags=re.IGNORECASE).strip().title()
+                if subj.lower() not in ("i", "he", "she", "they", "we", "complainant", "victim", "respondent"):
+                    witnesses = [subj]
+
+        if not witnesses:
+            # Pattern D: implicit presence — "along with [Name]", "[Name] was present/was there",
+            #             "in front of [Name]", "[Name] also saw/heard"
+            implicit_patterns = [
+                r'\balong with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',
+                r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+was\s+(?:also\s+)?(?:present|there)\b',
+                r'\bin front of\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',
+                r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:also\s+)?(?:saw|heard|noticed|overheard)\b',
+                r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+was\s+(?:also\s+)?(?:a\s+)?witness\b',
+            ]
+            for pat in implicit_patterns:
+                m = re.search(pat, text)
+                if m:
+                    candidate = m.group(1).strip().title()
+                    if candidate.lower() not in ("i", "he", "she", "they", "we",
+                                                 "complainant", "victim", "respondent"):
+                        witnesses = [candidate]
+                        break
+
+        # De-duplicate, normalise casing, exclude complainant/respondent
+        _HR_FIXES = {"Hr Manager": "HR Manager", "Hr Staff": "HR Staff", "Sjpu": "SJPU"}
         cleaned_witnesses = []
         seen = set()
         for w in witnesses:
             w_str = _to_str(w)
-            if w_str and w_str.lower() not in ["none", "none specified", "null", "none"]:
-                w_title = w_str.title()
-                if w_title.lower() == "hr manager":
-                    w_title = "HR Manager"
-                if w_title.lower() == "hr staff":
-                    w_title = "HR Staff"
-                
-                exclude = []
-                if comp_name:
-                    exclude.append(comp_name.lower())
-                if resp_name:
-                    exclude.append(resp_name.lower())
-                
-                if w_title.lower() not in exclude and w_title.lower() not in seen:
-                    cleaned_witnesses.append(w_title)
-                    seen.add(w_title.lower())
+            if not w_str or w_str.lower() in ("none", "none specified", "null"):
+                continue
+            w_title = w_str.title()
+            for wrong, right in _HR_FIXES.items():
+                w_title = w_title.replace(wrong, right)
+            exclude = [x.lower() for x in (comp_name, resp_name) if x]
+            if w_title.lower() not in exclude and w_title.lower() not in seen:
+                cleaned_witnesses.append(w_title)
+                seen.add(w_title.lower())
         witnesses = cleaned_witnesses
 
-        # 9. Nature of incident summary
+        # 9. Nature of incident — strip generic fallbacks, reject vague stubs (req 3)
+        _GENERIC_STUBS = {
+            "workplace harassment", "alleged incident of workplace harassment",
+            "sexual harassment", "alleged sexual harassment",
+            "inappropriate behaviour", "inappropriate behavior",
+            "unspecified incident description", "incident of harassment",
+        }
         nature_summary = _to_str(facts.get("nature_of_incident"))
         if nature_summary:
-            nature_summary = re.sub(r'^(?:my name is|i am|this is|hi|hello)\s+[A-Za-z]+(?:\s+[A-Za-z]+)?\.?\s*', '', nature_summary, flags=re.IGNORECASE).strip()
-            if nature_summary:
+            # Strip conversational openers
+            nature_summary = re.sub(
+                r'^(?:my name is|i am|this is|hi|hello)\s+[A-Za-z]+(?:\s+[A-Za-z]+)?\.?\s*',
+                '', nature_summary, flags=re.IGNORECASE
+            ).strip()
+            # Reject if the cleaned summary is still a generic stub
+            if nature_summary.lower().rstrip('.') in _GENERIC_STUBS:
+                nature_summary = None
+            elif nature_summary:
                 nature_summary = nature_summary[0].upper() + nature_summary[1:]
         if not nature_summary:
-            nature_summary = "Alleged incident of workplace harassment."
+            # Build a minimal but specific fallback from incident facts already extracted
+            acts_found = []
+            low = text.lower()
+            if any(k in low for k in ["touch", "physical", "grab", "grope", "hug", "fondle"]):
+                acts_found.append("unwanted physical contact")
+            if any(k in low for k in ["comment", "remark", "joke", "say", "said", "tell", "told", "verbal"]):
+                acts_found.append("verbal remarks of a sexual nature")
+            if any(k in low for k in ["message", "whatsapp", "text", "email", "send", "sent"]):
+                acts_found.append("unsolicited sexual messages")
+            if any(k in low for k in ["show", "display", "image", "photo", "video", "explicit"]):
+                acts_found.append("display of explicit material")
+            if any(k in low for k in ["promise", "promotion", "appraisal", "favour", "threat", "quid pro quo"]):
+                acts_found.append("quid pro quo demands")
+            if acts_found:
+                nature_summary = (
+                    f"The complainant alleges {', and '.join(acts_found)} by the respondent "
+                    f"constituting sexual harassment as defined under the applicable Act."
+                )
+            else:
+                nature_summary = (
+                    "The complainant alleges conduct by the respondent constituting sexual harassment "
+                    "as defined under the applicable Act. Specific details of the alleged acts are "
+                    "as described in the complainant's narrative."
+                )
 
         # 10. Evidence description
         evidence = []
@@ -606,16 +754,16 @@ class OllamaClient:
         evidence = cleaned_evidence
 
         return ExtractedFacts(
-            complainant_name=comp_name if comp_name else "Unknown",
-            complainant_age=comp_age if comp_age else "Unknown",
-            respondent_name=resp_name if resp_name else "Unknown",
-            respondent_designation=resp_desig if resp_desig else "Unknown",
-            incident_date=inc_date if inc_date else "Unknown",
-            incident_time=inc_time if inc_time else "Unknown",
-            incident_location=inc_loc if inc_loc else "Not Provided",
+            complainant_name=comp_name if comp_name and comp_name.lower() not in ("unknown", "not provided") else None,
+            complainant_age=comp_age if comp_age and comp_age.lower() not in ("unknown", "not provided") else None,
+            respondent_name=resp_name if resp_name and resp_name.lower() not in ("unknown", "not provided") else None,
+            respondent_designation=resp_desig if resp_desig and resp_desig.lower() not in ("unknown", "not provided") else None,
+            incident_date=inc_date if inc_date and inc_date.lower() not in ("unknown", "not provided") else None,
+            incident_time=inc_time if inc_time and inc_time.lower() not in ("unknown", "not provided") else None,
+            incident_location=inc_loc if inc_loc and inc_loc.lower() not in ("unknown", "not provided") else None,
             nature_of_incident=nature_summary,
-            witnesses=witnesses if witnesses else ["None Specified"],
-            evidence_description=evidence if evidence else ["None Mentioned"]
+            witnesses=[w for w in witnesses if w and w.lower() not in ("none", "none specified", "none mentioned", "not provided")],
+            evidence_description=[e for e in evidence if e and e.lower() not in ("none", "none mentioned", "none provided", "not provided")]
         )
 
     def extract_facts_from_chat(self, messages: List[Dict[str, str]]) -> ExtractedFacts:
@@ -761,34 +909,29 @@ class OllamaClient:
         else:
             framework_str = "POSH Act 2013 / POCSO Act 2012"
 
+        # Note: the raw template string is used only as a data-transmission medium
+        # to the DOCX exporter which applies all real formatting.  Avoid ==== lines,
+        # mixed-Act references, and duplicate titles here.
         return (
-            "================================================================================\n"
-            "                       FORMAL COMPLAINT FORM\n"
-            "             [PoSH Act, 2013 / POCSO Act, 2012 Compliance]\n"
-            "================================================================================\n\n"
-            f"DATE OF SUBMISSION: {current_date_str}\n\n"
+            f"Formal Complaint under the {framework_str}\n\n"
+            f"Date of Submission: {current_date_str}\n\n"
             "1. Complainant Details:\n"
-            f"   - Full Name: {comp_name}\n"
-            f"   - Age / DOB: {comp_age}\n"
-            "   - Contact / Designation: [Not Provided / Unspecified]\n\n"
-            "2. Respondent / Accused Details:\n"
-            f"   - Full Name: {resp_name}\n"
-            f"   - Designation / Department / Relationship: {resp_desig}\n\n"
+            f"   Full Name: {comp_name}\n"
+            f"   Age: {comp_age}\n\n"
+            "2. Respondent Details:\n"
+            f"   Full Name: {resp_name}\n"
+            f"   Designation: {resp_desig}\n\n"
             "3. Incident Details:\n"
-            f"   - Date(s) & Time of Incident: {inc_date_time}\n"
-            f"   - Place / Location of Incident: {inc_loc}\n\n"
-            "4. Detailed Description of Incident(s):\n"
+            f"   Date/Time: {inc_date_time}\n"
+            f"   Location: {inc_loc}\n\n"
+            "4. Description:\n"
             f"   {narrative}\n\n"
-            "5. Witnesses (If Any):\n"
-            f"   - Witness Name(s) & Details: {witnesses_str}\n\n"
-            "6. Evidence / Attachments Available:\n"
-            f"   - Evidence Details: {evidence_str}\n\n"
-            "7. Applicable Legal Framework:\n"
-            f"   - Statutory Classification: {framework_str}\n\n"
-            "8. Declaration:\n"
-            "   I hereby confirm that the information provided above is true and correct to the best of my knowledge and belief.\n\n"
-            f"   Signature / Name of Complainant: _______________________\n"
-            "================================================================================"
+            "5. Witnesses:\n"
+            f"   {witnesses_str}\n\n"
+            "6. Evidence:\n"
+            f"   {evidence_str}\n\n"
+            "7. Declaration:\n"
+            "   The information above is true and correct to the best of my knowledge."
         )
 
 
@@ -814,7 +957,8 @@ class OllamaClient:
             addressed_to=addressed_to,
             draft_text=formatted_template,
             disclaimer=disclaimer,
-            citations=contexts
+            citations=contexts,
+            facts=facts,
         )
 
     def build_agent_response_payload(

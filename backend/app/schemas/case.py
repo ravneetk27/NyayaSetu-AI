@@ -9,14 +9,26 @@ class ClassificationResult(BaseModel):
     rationale: str
 
 class ExtractedFacts(BaseModel):
+    # Complainant
     complainant_name: Optional[str] = None
     complainant_age: Optional[str] = None
+    complainant_emp_id: Optional[str] = None
+    complainant_designation: Optional[str] = None
+    complainant_department: Optional[str] = None
+    complainant_contact: Optional[str] = None
+    relationship_to_respondent: Optional[str] = None
+    # Respondent
     respondent_name: Optional[str] = None
     respondent_designation: Optional[str] = None
+    respondent_department: Optional[str] = None
+    respondent_organization: Optional[str] = None
+    respondent_contact: Optional[str] = None
+    # Incident
     incident_date: Optional[str] = None
     incident_time: Optional[str] = None
     incident_location: Optional[str] = None
     nature_of_incident: str = "Unspecified incident description."
+    # Supporting
     witnesses: List[str] = Field(default_factory=list)
     evidence_description: List[str] = Field(default_factory=list)
 
@@ -54,6 +66,8 @@ class ComplaintDraft(BaseModel):
     draft_text: str
     disclaimer: str
     citations: List[RetrievedContext] = Field(default_factory=list)
+    # Structured facts passed to the DOCX exporter (optional for backward-compat)
+    facts: Optional["ExtractedFacts"] = None
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]

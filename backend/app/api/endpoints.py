@@ -221,7 +221,8 @@ def export_complaint(draft: ComplaintDraft):
             draft_text=draft.draft_text,
             category=draft.category,
             addressed_to=draft.addressed_to,
-            disclaimer=draft.disclaimer
+            disclaimer=draft.disclaimer,
+            facts=draft.facts,
         )
         return StreamingResponse(
             file_stream,
