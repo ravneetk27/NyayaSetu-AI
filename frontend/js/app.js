@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // Determine backend URL (fallback to localhost if opened as file:// or served on a port other than 8000)
-    const BASE_URL = (window.location.protocol === "file:" || (window.location.port && window.location.port !== "8000")) ? "http://127.0.0.1:8000" : "";
+    // Determine backend URL (fallback to localhost only if opened directly from local filesystem)
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const BASE_URL = (window.location.protocol === "file:" || (isLocalhost && window.location.port && window.location.port !== "8000")) ? "http://127.0.0.1:8000" : "";
+
 
 
     // DOM Elements
