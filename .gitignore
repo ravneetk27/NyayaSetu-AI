@@ -49,3 +49,18 @@ test_server_out.log
 .DS_Store
 Thumbs.db
 .gemini/
+
+# Large binary / data files — rebuilt on server via /api/ingest
+data/vector_db.pkl
+data/legal_sources/HANDBOOK_ON_POSH1.pdf
+data/legal_sources/NCW_Posh_Guide_17aug-1.pdf
+
+# Test artifacts
+test_output.docx
+test_pipeline.log
+test_pipeline_output.log
+test_pipeline.py
+test_server_err.log
+test_server_out.log
+verify_setup.py
+profile_direct.py

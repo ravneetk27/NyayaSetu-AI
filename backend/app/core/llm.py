@@ -1,9 +1,10 @@
 import re
 import json
-import requests
+import os
 from datetime import date
 from typing import Dict, Any, List, Optional
-from app.config import OLLAMA_URL, LLM_MODEL
+from groq import Groq
+from app.config import GROQ_API_KEY, LLM_MODEL
 from app.schemas.case import (
     ClassificationResult, 
     ExtractedFacts, 
@@ -17,63 +18,69 @@ from app.schemas.case import (
 OUT_OF_SCOPE_MESSAGE = "I am an AI assistant specialized strictly in POSH (Prevention of Sexual Harassment) and POCSO (Protection of Children from Sexual Offences) matters. I cannot answer or process queries outside of these legal domains."
 
 class OllamaClient:
+    """LLM client — now backed by the Groq cloud API instead of a local Ollama server."""
+
     def __init__(self):
-        self.url = f"{OLLAMA_URL}/api/chat"
+        if not GROQ_API_KEY:
+            print("[WARN] GROQ_API_KEY is not set. LLM calls will fail. "
+                  "Set it via the GROQ_API_KEY environment variable.")
+        self._groq = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+    # ------------------------------------------------------------------
+    # Private helpers — Groq equivalents of the old Ollama helpers
+    # ------------------------------------------------------------------
 
     def _call_ollama(self, prompt: str, system_prompt: str = "", json_mode: bool = True) -> str:
-        """Helper to invoke Ollama chat API."""
-        payload = {
-            "model": LLM_MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "stream": False,
-            "options": {
-                "temperature": 0.1,  # Low temperature for statutory facts and classification
-                "num_predict": 256,   # Speed up generation by limiting max tokens
-                "num_ctx": 2048,      # Speed up prompt evaluation
-            }
-        }
-        if json_mode:
-            payload["format"] = "json"
-            
-        try:
-            response = requests.post(self.url, json=payload, timeout=400)
-            response.raise_for_status()
-            result_json = response.json()
-            return result_json.get("message", {}).get("content", "")
-        except requests.exceptions.RequestException as e:
-            print(f"Ollama API connection failed: {e}")
-            raise RuntimeError(f"Could not connect to Ollama at {OLLAMA_URL}. Ensure Ollama is running and '{LLM_MODEL}' is pulled.")
-
-    def _call_ollama_chat(self, messages: List[Dict[str, str]], system_prompt: str = "") -> str:
-        """Helper to invoke Ollama Instruct model in conversational mode."""
-        formatted_messages = []
+        """Single-turn call that requests JSON output (mirrors old Ollama JSON mode)."""
+        if self._groq is None:
+            raise RuntimeError("GROQ_API_KEY is not configured. "
+                               "Add it as an environment variable.")
+        messages = []
         if system_prompt:
-            formatted_messages.append({"role": "system", "content": system_prompt})
-        
-        for msg in messages:
-            formatted_messages.append({
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", "")
-            })
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": LLM_MODEL,
-            "messages": formatted_messages,
-            "stream": False,
-            "options": {
-                "temperature": 0.3,
-            }
-        }
+        kwargs = dict(
+            model=LLM_MODEL,
+            messages=messages,
+            temperature=0.1,
+            max_tokens=512,
+        )
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
         try:
-            response = requests.post(self.url, json=payload, timeout=400)
-            response.raise_for_status()
-            result_json = response.json()
-            return result_json.get("message", {}).get("content", "")
-        except requests.exceptions.RequestException as e:
-            print(f"Ollama Instruct API call failed: {e}")
+            response = self._groq.chat.completions.create(**kwargs)
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            print(f"Groq API call failed: {e}")
+            raise RuntimeError(f"Could not reach Groq API: {e}")
+
+    def _call_ollama_chat(
+        self, messages: List[Dict[str, str]], system_prompt: str = ""
+    ) -> str:
+        """Multi-turn chat call (mirrors old Ollama chat helper)."""
+        if self._groq is None:
+            raise RuntimeError("GROQ_API_KEY is not configured. "
+                               "Add it as an environment variable.")
+        formatted: List[Dict[str, str]] = []
+        if system_prompt:
+            formatted.append({"role": "system", "content": system_prompt})
+        for msg in messages:
+            formatted.append(
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+            )
+
+        try:
+            response = self._groq.chat.completions.create(
+                model=LLM_MODEL,
+                messages=formatted,
+                temperature=0.3,
+                max_tokens=1024,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            print(f"Groq chat API call failed: {e}")
             return ""
 
     def check_domain_relevance(self, text: str) -> bool:

@@ -9,9 +9,10 @@ LEGAL_SOURCES_DIR = DATA_DIR / "legal_sources"
 # Ensure directories exist
 LEGAL_SOURCES_DIR.mkdir(parents=True, exist_ok=True)
 
-# Ollama Config
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:1b")
+# Groq API Config (replaces local Ollama)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# llama-3.1-8b-instant: free, fast, great for legal text on Groq
+LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
 # Embedding Config
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")

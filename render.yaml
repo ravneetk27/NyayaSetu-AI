@@ -7,8 +7,12 @@ services:
     startCommand: python backend/run.py
     envVars:
       - key: HOST
-        value: 0.0.0.0
-      - key: OLLAMA_URL
-        sync: false
+        value: "0.0.0.0"
+      - key: PORT
+        value: "8000"
+      - key: GROQ_API_KEY
+        sync: false          # Set this secret in Render dashboard
       - key: LLM_MODEL
-        value: llama3.2:1b
+        value: llama-3.1-8b-instant
+      - key: EMBEDDING_MODEL_NAME
+        value: sentence-transformers/all-MiniLM-L6-v2
