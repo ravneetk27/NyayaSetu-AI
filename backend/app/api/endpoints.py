@@ -6,8 +6,6 @@ from app.schemas.case import (
     IngestResponse,
     ComplaintDraft,
     RetrievedContext,
-    ChatRequest,
-    ChatResponse,
     ExtractedFacts,
     AgentResponsePayload
 )
@@ -34,51 +32,6 @@ def ingest_documents():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
-
-@router.post("/chat", response_model=ChatResponse)
-def chat_with_assistant(request: ChatRequest):
-    """Real-time chat endpoint for empathetic legal guidance & statutory FAQs."""
-    try:
-        msg_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
-        user_msgs = [m['content'].strip() for m in msg_dicts if m['role'] == 'user']
-        last_user_msg = user_msgs[-1] if user_msgs else ""
-        
-        # Check domain relevance
-        is_relevant = ollama_client.check_domain_relevance(last_user_msg)
-        if not is_relevant:
-            payload = ollama_client.build_agent_response_payload(
-                is_relevant=False,
-                action_triggered="ADVISE",
-                advice_response=OUT_OF_SCOPE_MESSAGE,
-                facts=ExtractedFacts(nature_of_incident="Out of scope query")
-            )
-            return ChatResponse(
-                reply=OUT_OF_SCOPE_MESSAGE,
-                quick_replies=[],
-                payload=payload
-            )
-
-        # Vector DB search for statutory FAQs if applicable
-        rag_results = rag_engine.search(last_user_msg, top_k=2) if last_user_msg else []
-        result = ollama_client.generate_chat_reply(msg_dicts, rag_context=rag_results)
-        
-        extracted_facts = ollama_client.extract_facts_from_chat(msg_dicts)
-
-        payload = ollama_client.build_agent_response_payload(
-            is_relevant=result.get("is_posh_pocso_relevant", True),
-            action_triggered=request.action_triggered or "ADVISE",
-            advice_response=result["reply"],
-            facts=extracted_facts,
-            formatted_draft=""
-        )
-
-        return ChatResponse(
-            reply=result["reply"],
-            quick_replies=result.get("quick_replies", []),
-            payload=payload
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat assistant failed: {str(e)}")
 
 @router.post("/analyze", response_model=AnalyzeComplaintResponse)
 def analyze_complaint(request: AnalyzeComplaintRequest):

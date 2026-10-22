@@ -1,0 +1,46 @@
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+
+# Git
+.git/
+.gitignore
+
+# Logs & test artifacts
+*.log
+test_output.docx
+test_pipeline.py
+test_pipeline.log
+test_pipeline_output.log
+test_server_err.log
+test_server_out.log
+verify_setup.py
+profile_direct.py
+
+# Environment secrets
+.env
+.env.*
+
+# Large vector DB (rebuilt at runtime via /api/ingest)
+data/vector_db.pkl
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+node_modules/

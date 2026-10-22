@@ -56,33 +56,6 @@ class OllamaClient:
             print(f"Groq API call failed: {e}")
             raise RuntimeError(f"Could not reach Groq API: {e}")
 
-    def _call_ollama_chat(
-        self, messages: List[Dict[str, str]], system_prompt: str = ""
-    ) -> str:
-        """Multi-turn chat call (mirrors old Ollama chat helper)."""
-        if self._groq is None:
-            raise RuntimeError("GROQ_API_KEY is not configured. "
-                               "Add it as an environment variable.")
-        formatted: List[Dict[str, str]] = []
-        if system_prompt:
-            formatted.append({"role": "system", "content": system_prompt})
-        for msg in messages:
-            formatted.append(
-                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
-            )
-
-        try:
-            response = self._groq.chat.completions.create(
-                model=LLM_MODEL,
-                messages=formatted,
-                temperature=0.3,
-                max_tokens=1024,
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            print(f"Groq chat API call failed: {e}")
-            return ""
-
     def check_domain_relevance(self, text: str) -> bool:
         """Check if user query is strictly within POSH or POCSO legal domain scope."""
         if not text or not text.strip():
@@ -132,108 +105,6 @@ class OllamaClient:
             return False
 
         return True
-
-    def generate_chat_reply(
-        self, 
-        messages: List[Dict[str, str]], 
-        rag_context: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
-        """Mode A: General Advisory & Inquiry Mode (AI Legal Advisor)."""
-        user_msgs = [m['content'].strip() for m in messages if m['role'] == 'user']
-        last_user_msg = user_msgs[-1] if user_msgs else ""
-        low_last = last_user_msg.lower()
-
-        # Step 1: Strict Domain Guardrail Check
-        if not self.check_domain_relevance(last_user_msg):
-            return {
-                "reply": OUT_OF_SCOPE_MESSAGE,
-                "is_posh_pocso_relevant": False,
-                "quick_replies": []
-            }
-
-        greetings = [
-            "hello", "hi", "hey", "good morning", "good evening", "namaste", 
-            "sat shri akal", "satsriakal", "adaab", "pranam", "help"
-        ]
-
-        if low_last in greetings or low_last in [g + "." for g in greetings] or low_last in [g + "!" for g in greetings]:
-            return {
-                "reply": "Hello! I am your AI Legal Advisor specialized strictly in POSH & POCSO matters. Please describe your problem or ask any question regarding workplace sexual harassment or child protection, and I will provide legal advice under Indian law and outline what can be done further.",
-                "is_posh_pocso_relevant": True,
-                "quick_replies": []
-            }
-
-        # Step 2: System Prompt instructing Ollama Instruct LLM to give comprehensive POSH / POCSO legal advice & next steps
-        system_prompt = (
-            "You are AI Legal Advisor, an expert legal AI strictly specialized in Indian law regarding:\n"
-            "1. POSH Act, 2013 (Prevention of Sexual Harassment of Women at Workplace Act)\n"
-            "2. POCSO Act, 2012 (Protection of Children from Sexual Offences Act)\n\n"
-            "STRICT DOMAIN SCOPE:\n"
-            "- You ONLY handle POSH and POCSO legal advisory.\n"
-            "- If the user's issue is NOT related to POSH or POCSO (e.g. financial theft, stealing company funds, corporate tax, general crimes, coding, math), strictly respond:\n"
-            f"  '{OUT_OF_SCOPE_MESSAGE}'\n\n"
-            "LEGAL ADVICE MANDATE:\n"
-            "Whenever a user asks a question or describes a problem related to POSH or POCSO, you MUST provide comprehensive LEGAL ADVICE detailing:\n"
-            "1. **Applicable Legal Framework**: PoSH Act 2013 or POCSO Act 2012.\n"
-            "2. **Relevant Statutory Provisions & Rights**: Cite sections (e.g., Sec 3 Quid Pro Quo harassment, Sec 9 IC Complaint filing, Sec 12 Interim Relief, Sec 16 Confidentiality, Sec 19 POCSO Mandatory Reporting).\n"
-            "3. **What Can Be Done Further (Actionable Next Steps)**:\n"
-            "   - Step-by-step guidance on submitting formal written complaints to the Internal Committee (IC), Local Committee (LC), or Police/SJPU.\n"
-            "   - Evidence collection (emails, messages, screenshots, witness documentation).\n"
-            "   - Requesting interim remedies (transfer, paid leave, restraint orders, emergency police/childline 1098 help).\n"
-            "4. Keep the tone empathetic, clear, professional, and well-structured with bullet points."
-        )
-
-        if rag_context and len(rag_context) > 0:
-            snippets = "\n".join([f"- [Source: {r.get('source', 'Statute')}]: {r.get('text_snippet', '')}" for r in rag_context if r.get('text_snippet')])
-            if snippets:
-                system_prompt += f"\n\nSTATUTORY CONTEXT & LEGAL CITATIONS:\n{snippets}"
-
-        llm_reply = self._call_ollama_chat(messages, system_prompt=system_prompt)
-        if llm_reply and llm_reply.strip():
-            # Check if LLM output indicated out-of-scope
-            if OUT_OF_SCOPE_MESSAGE.lower() in llm_reply.lower() or "outside of these legal domains" in llm_reply.lower():
-                return {
-                    "reply": OUT_OF_SCOPE_MESSAGE,
-                    "is_posh_pocso_relevant": False,
-                    "quick_replies": []
-                }
-            return {
-                "reply": llm_reply.strip(),
-                "is_posh_pocso_relevant": True,
-                "quick_replies": []
-            }
-
-        # Step 3: Comprehensive Legal Advisory Fallback (if Ollama LLM is loading or offline)
-        is_pocso = any(kw in low_last for kw in ["under 18", "minor", "child", "pocso", "school", "student", "kid"])
-        
-        if is_pocso:
-            fallback_reply = (
-                "### Legal Advice under POCSO Act, 2012:\n\n"
-                "1. **Statutory Applicability:** The POCSO Act (2012) protects individuals under 18 years of age against sexual offences.\n"
-                "2. **Mandatory Reporting (Section 19):** Any person who has knowledge or apprehension of child abuse is legally mandated to report it to the Special Juvenile Police Unit (SJPU) or local police. Emergency Helplines: Childline 1098 / Police 112.\n"
-                "3. **Identity Protection (Section 23):** The minor's identity is strictly confidential and protected by law.\n\n"
-                "### What Can Be Done Further:\n"
-                "- **Report Immediately:** File a report with the nearest SJPU or police station.\n"
-                "- **Document Facts:** Record dates, locations, and statements while preserving digital evidence.\n"
-                "- **Medical & Counseling Support:** Request immediate medical examination and psychological support through designated child protection units."
-            )
-        else:
-            fallback_reply = (
-                "### Legal Advice under PoSH Act, 2013:\n\n"
-                "1. **Statutory Provisions:** The PoSH Act (2013) protects adult employees against workplace sexual harassment (including physical, verbal, digital harassment, and Quid Pro Quo demands under Section 3).\n"
-                "2. **Strict Confidentiality (Section 16):** Your complaint and identity are 100% confidential under Indian law.\n"
-                "3. **Interim Relief (Section 12):** You can request transfer, up to 3 months of paid leave, or restraint orders during the inquiry.\n\n"
-                "### What Can Be Done Further:\n"
-                "- **File a Written Complaint:** Submit a formal complaint to your workplace Internal Committee (IC) within 3 months of the incident.\n"
-                "- **Preserve Evidence:** Gather text messages, emails, call records, and witness details.\n"
-                "- **Use Complaint Drafter:** Switch to the 'Complaint Drafter' tab above to generate a formal, legally structured complaint form."
-            )
-
-        return {
-            "reply": fallback_reply,
-            "is_posh_pocso_relevant": True,
-            "quick_replies": []
-        }
 
     def classify_narrative(self, narrative: str) -> ClassificationResult:
         """Strict statutory classification enforcing POSH, POCSO, or OTHER."""
@@ -317,54 +188,55 @@ class OllamaClient:
     def _extract_facts_via_llm(self, text: str) -> Dict[str, Any]:
         """Invoke Ollama in JSON mode for LLM-based structured fact extraction using strict compliance guidelines."""
         system_prompt = (
-            "You are a legal assistant specializing in POSH and POCSO fact extraction. "
-            "Your task is to extract incident facts from the description and return them in a flat JSON structure.\n\n"
-            "Strict Compliance Rules:\n"
-            "1. 'respondent_name': Identify the person performing the alleged misconduct. Search for names associated "
-            "with phrases like 'against', 'my manager', 'my supervisor', 'my team lead', 'accused', 'respondent', "
-            "'Mr.', 'Ms.', 'named', 'called'. If the respondent's name is NOT mentioned but their role/designation "
-            "(e.g. 'Team Lead', 'Manager') is mentioned, set this to 'Unknown'. Only set to null if absolutely no "
-            "respondent information is present.\n"
-            "2. 'respondent_designation': Extract the respondent's job role/designation (e.g., Team Lead, Manager, "
-            "Supervisor, Bus Driver) if mentioned. Otherwise null.\n"
-            "3. 'incident_date': Extract the FULL date including year whenever possible (e.g., '18 July 2026', "
-            "'Oct 12 2026'). If the year is not stated, extract what is given and append '(year unspecified)'. "
-            "Capture relative references too (e.g. 'yesterday', 'last Monday', 'last week'). Return null only when "
-            "absolutely no date reference exists.\n"
-            "4. 'incident_time': Extract the time of the incident. Do NOT return null for qualitative time windows — "
-            "capture expressions like 'lunch break', 'after office hours', 'morning standup', 'during the commute', "
-            "'midnight', 'late evening', 'after-hours', 'during lunch', 'end of day'. Return exact clock times "
-            "(e.g., '3:30 PM') when given, otherwise return the qualitative window as-is. Return null only when "
-            "absolutely no time reference exists.\n"
-            "5. 'incident_location': Identify the workplace, organization, company name, office, cabin, conference "
-            "room, school name, classroom, cafeteria, or location. If only the company/organization is mentioned, "
-            "use it as the location. Only return null when absolutely no location-related info exists.\n"
-            "6. 'nature_of_incident': Generate a concise, factual, professional legal summary (2-4 sentences, "
-            "50-100 words). CRITICAL: Do NOT use generic phrases like 'workplace harassment' or 'inappropriate "
-            "behaviour'. Instead, name the SPECIFIC alleged acts, e.g. 'unwanted physical touching', "
-            "'verbal sexual remarks', 'displaying explicit material', 'quid pro quo demand for sexual favours'. "
-            "Reference the applicable legal definitions under the PoSH Act, 2013 (Section 2(n)) or POCSO Act, 2012 "
-            "(Section 7/11) where appropriate. Include who committed the act, the context, and the impact.\n"
-            "7. 'witnesses': Extract ANY individual who was present at the scene, heard, or saw the incident — even "
-            "if the word 'witness' is never used. Look for context clues: 'was present', 'was there', 'saw it', "
-            "'heard this', 'along with [Name]', 'in front of [Name]', 'other colleagues were present', "
-            "'[Name] also noticed', '[Name] saw', '[Name] heard'. Include named individuals AND described groups "
-            "(e.g., 'Three Team Members', 'HR Staff'). Return [] ONLY if no third party or bystander is mentioned "
-            "anywhere in the narrative.\n"
-            "8. 'evidence_description': List of evidence mentioned (e.g., emails, WhatsApp messages, CCTV footage, "
-            "call logs) or empty list [] if none.\n\n"
+            "You are a strict legal fact-extraction assistant specializing in POSH and POCSO cases. "
+            "Extract facts ONLY from the text provided. Do NOT invent, infer, or add any information not "
+            "explicitly stated. Return results in flat JSON.\n\n"
+            "EXTRACTION RULES (apply to BOTH POSH and POCSO):\n"
+            "1. 'respondent_name': Extract the name of the person performing the alleged misconduct. "
+            "Search near phrases like 'against', 'Mr./Ms./Dr.', 'named', 'called', 'my manager/supervisor/teacher'. "
+            "If no name is given but a role IS mentioned (e.g. 'Associate Director'), set name to "
+            "'[Name Withheld / Unknown - <Role>]' substituting the actual role. Only return null if absolutely "
+            "no respondent information exists.\n"
+            "2. 'respondent_designation': Extract the EXACT title/role from the narrative (e.g. 'Associate Director', "
+            "'Senior Teacher', 'Bus Driver'). Do not generalize. Return null if not mentioned.\n"
+            "3. 'incident_date': Extract the FULL date with year when available (e.g. 'October 12, 2026', "
+            "'18 July 2026'). Also capture the specific time if stated alongside (e.g. 'at approximately 4:30 PM IST'). "
+            "Do NOT substitute the current execution date. Append '(year unspecified)' if year is missing. "
+            "Return null only if no date reference exists.\n"
+            "4. 'incident_time': Extract the EXACT clock time stated (e.g. '4:30 PM IST', '3:30 PM'). Also accept "
+            "qualitative windows: 'lunch break', 'after office hours', 'morning standup', 'during commute', "
+            "'midnight', 'late evening', 'end of day'. Return null only if no time reference exists.\n"
+            "5. 'incident_location': Extract the FULL location hierarchy from the narrative — include Room/Area, "
+            "Floor, Building/Company name, and City if all are mentioned (e.g. 'Conference Room B, 3rd Floor, "
+            "TechSolutions Pvt. Ltd., Mumbai'). Do NOT truncate to just the company name. Only return null if "
+            "absolutely no location information exists.\n"
+            "6. 'nature_of_incident': Write a factual 2-4 sentence summary using ONLY acts explicitly described "
+            "in the input. Include verbatim quotes from the narrative where possible. NEVER add standardized "
+            "boilerplate claims (e.g. do NOT add 'display of explicit material' unless the input explicitly states it). "
+            "Name the specific acts (e.g. 'unwanted physical touching', 'verbal sexual remarks', "
+            "'quid pro quo demand for sexual favours'). Reference applicable statutory sections where relevant "
+            "(PoSH Act Sec 2(n), POCSO Act Sec 7/11). Include perpetrator context and impact.\n"
+            "7. 'witnesses': Extract every person who was present, saw, or heard the incident — even if the word "
+            "'witness' is not used. Look for: 'was present', 'was there', 'saw it', 'heard this', 'along with [Name]', "
+            "'in front of [Name]', '[Name] also noticed', '[Name] saw/heard'. For each witness, capture their "
+            "name, title/role, and relevance in the format 'Name | Role | What they observed'. "
+            "Example: 'Tanya Sharma | Senior Quality Analyst | Observed physical conduct in room'. "
+            "Return [] only if no third party is mentioned.\n"
+            "8. 'evidence_description': List every artifact explicitly cited (e.g. 'swipe logs from Oct 12', "
+            "'timestamped Slack screenshots', 'CCTV footage', 'call records'). List each item separately. "
+            "Return [] if none mentioned.\n\n"
             "JSON Format:\n"
             "{\n"
             '  "complainant_name": "Name of complainant or null",\n'
             '  "complainant_age": "Age/DOB or null",\n'
-            '  "respondent_name": "Name of accused, or \'Unknown\', or null",\n'
-            '  "respondent_designation": "Designation/role or null",\n'
-            '  "incident_date": "Full date with year (e.g. \'18 July 2026\') or null",\n'
-            '  "incident_time": "Clock time (e.g. \'3:30 PM\') or qualitative window (e.g. \'lunch break\') or null",\n'
-            '  "incident_location": "Location or null",\n'
-            '  "nature_of_incident": "Specific acts summary (2-4 sentences, 50-100 words)",\n'
-            '  "witnesses": ["Names or group descriptions of anyone present/who saw/heard the incident"],\n'
-            '  "evidence_description": ["Evidence description list"]\n'
+            '  "respondent_name": "Exact name, or \'[Name Withheld / Unknown - <Role>]\', or null",\n'
+            '  "respondent_designation": "Exact title/role from narrative or null",\n'
+            '  "incident_date": "Full date with year and time if stated (e.g. \'October 12, 2026, at approximately 4:30 PM IST\') or null",\n'
+            '  "incident_time": "Clock time or qualitative window or null",\n'
+            '  "incident_location": "Full hierarchy: Room, Floor, Building/Company, City or null",\n'
+            '  "nature_of_incident": "Grounded factual summary with verbatim quotes, specific acts only (2-4 sentences)",\n'
+            '  "witnesses": ["Name | Role | What they observed (one entry per witness)"],\n'
+            '  "evidence_description": ["Each artifact cited in the narrative"]\n'
             "}"
         )
         try:
@@ -471,10 +343,22 @@ class OllamaClient:
         # 1. Complainant Name
         comp_name = _to_str(facts.get("complainant_name"))
         if not comp_name:
-            comp_match = re.search(r'\b(?:complainant statement|name is|i am|my name is|Complainant Statement|Name is|I am|My name is|My Name is)\s*[:\-]?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', text)
-            comp_name = comp_match.group(1).title() if comp_match else None
+            comp_patterns = [
+                r'\b(?:complainant(?:\s+name)?(?:\s+is)?|name is|i am|my name is|my name|this is)\s*[:\-]?\s*([A-Za-z]+(?:\s+[A-Za-z]+){1,2})',
+                r'\b([A-Za-z]+(?:\s+[A-Za-z]+){1,2})\s*,\s*(?:phone|email|age|an employee|working as|hereby)\b',
+            ]
+            for pat in comp_patterns:
+                comp_match = re.search(pat, text, re.IGNORECASE)
+                if comp_match:
+                    cand = comp_match.group(1).strip()
+                    # Strip any trailing stopwords that were caught by {1,2}
+                    cand = re.sub(r'\s+(?:my|who|and|at|the|is|was|on|in)$', '', cand, flags=re.IGNORECASE).strip().title()
+                    cand_low = cand.lower()
+                    if cand_low not in ("my manager", "the manager", "my supervisor", "a complaint", "harassment", "formal complaint") and len(cand) > 1:
+                        comp_name = cand
+                        break
         else:
-            comp_name = comp_name.title()
+            comp_name = re.sub(r'\s+(?:my|who|and|at|the|is|was|on|in)$', '', comp_name, flags=re.IGNORECASE).strip().title()
 
         # 2. Complainant Age
         comp_age = _to_str(facts.get("complainant_age"))
@@ -493,17 +377,25 @@ class OllamaClient:
         else:
             resp_desig = resp_desig.strip().title()
 
-        # 4. Respondent Name
+        # 4. Respondent Name — Rule 1 & 2: use [Name Withheld / Unknown - Role] when name absent but role known
         resp_name = _to_str(facts.get("respondent_name"))
+        _EXCLUDED_RESP_WORDS = {"at", "in", "on", "sexual", "harass", "harassed", "harassing", "unknown", "the", "my", "a", "an", "hanuai"}
         if not resp_name:
-            resp_match = re.search(r'\b(?:against|accused|respondent|mr\.?|ms\.?|dr\.?|named|called|supervisor|manager|team lead|Against|Accused|Respondent|Mr\.?|Ms\.?|Dr\.?|Named|Called|Supervisor|Manager|Team Lead)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', text)
+            resp_match = re.search(r'\b(?:against|accused|respondent|mr\.?|ms\.?|dr\.?|named|called)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)', text, re.IGNORECASE)
             if resp_match:
-                resp_name = resp_match.group(1).title()
-            else:
-                resp_match2 = re.search(r'\b(?:supervisor|manager|team lead|boss|colleague),?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', text)
+                cand = resp_match.group(1).strip().title()
+                first_w = cand.lower().split()[0]
+                if first_w not in _EXCLUDED_RESP_WORDS and cand.lower() not in _EXCLUDED_RESP_WORDS:
+                    resp_name = cand
+            if not resp_name:
+                resp_match2 = re.search(r'\b(?:supervisor|manager|team lead|boss|colleague)\s*,\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)', text, re.IGNORECASE)
                 if resp_match2:
-                    resp_name = resp_match2.group(1).title()
+                    cand = resp_match2.group(1).strip().title()
+                    first_w = cand.lower().split()[0]
+                    if first_w not in _EXCLUDED_RESP_WORDS and cand.lower() not in _EXCLUDED_RESP_WORDS:
+                        resp_name = cand
         else:
+            # Strip designation bleed-over from LLM output
             if resp_desig:
                 desig_lower = resp_desig.lower()
                 resp_name = re.sub(rf',\s*(?:my|the\s+)?{re.escape(desig_lower)}', '', resp_name, flags=re.IGNORECASE).strip()
@@ -511,25 +403,26 @@ class OllamaClient:
                 for word in desig_lower.split():
                     if len(word) > 2:
                         resp_name = re.sub(rf',\s*(?:my|the\s+)?{re.escape(word)}[a-z]*', '', resp_name, flags=re.IGNORECASE).strip()
-            
+
             resp_name = re.sub(rf',\s*(?:my|the\s+)?(?:manager|supervisor|team lead|driver|teacher|colleague|boss|employee|accused|respondent).*$', '', resp_name, flags=re.IGNORECASE).strip()
-            
+
             if resp_name.lower() not in ["unknown", "not mentioned", "not provided"]:
                 resp_name = resp_name.title()
 
-        # If name is unknown/missing but designation is available:
-        if (not resp_name or resp_name.lower() in ["unknown", "not provided"]) and resp_desig:
-            resp_name = "Unknown"
-        elif not resp_name:
-            resp_name = "Unknown"
+        # Rule 2: If name absent or starts with preposition/unknown but designation known → structured placeholder
+        if (not resp_name or resp_name.lower() in ["unknown", "not provided", "name withheld"] or resp_name.lower().startswith("at ")):
+            if resp_desig:
+                resp_name = f"[Name Withheld / Unknown - {resp_desig.title()}]"
+            else:
+                resp_name = "Unknown"
 
         # 5. Incident Date — always capture full date with year (req 2)
         inc_date = _to_str(facts.get("incident_date"))
         if not inc_date:
-            # Try full date with year first (e.g. "18 July 2026", "Oct 12, 2026", "12/10/2026")
+            # Try full date with year first (e.g. "5 oct 2026", "18 July 2026", "Oct 12, 2026", "12/10/2026")
             date_match = re.search(
-                r'\b(\d{1,2}[\s/-][A-Za-z]+[\s/-]\d{2,4}'
-                r'|[A-Za-z]+[\s/-]\d{1,2}[,\s/-]+\d{4}'
+                r'\b(\d{1,2}[\s/-]+[A-Za-z]+[\s/-]+\d{2,4}'
+                r'|[A-Za-z]+[\s/-]+\d{1,2}[,\s/-]+\d{4}'
                 r'|\d{1,2}/\d{1,2}/\d{2,4}'
                 r'|\d{4}-\d{2}-\d{2})\b',
                 text, re.IGNORECASE
@@ -596,29 +489,37 @@ class OllamaClient:
             else:
                 inc_time = inc_time.strip()  # preserve qualitative as-is
 
-        # 7. Incident Location
+        # 7. Incident Location — Rule 3: capture full hierarchy (Room, Floor, Building, City)
         inc_loc = _to_str(facts.get("incident_location"))
         if not inc_loc:
-            org_match = re.search(r'\b([A-Z][a-zA-Z0-9]*(?:\s+[A-Z][a-zA-Z0-9]*)*\s+(?:Private Limited|Pvt\.? Ltd\.?|Limited|Ltd\.?|Inc\.?|Corporation|Co\.?|School|College|University|Hospital|Office))\b', text)
-            if org_match:
-                inc_loc = org_match.group(1).strip().title()
+            # Try full hierarchy: "Room X, Floor Y, Company Z, City"
+            hierarchy_match = re.search(
+                r'\b([A-Za-z0-9\s,]+(?:room|floor|cabin|hall|office|canteen|cafeteria|classroom|building|premises)[A-Za-z0-9\s,]*)',
+                text, re.IGNORECASE
+            )
+            if hierarchy_match:
+                inc_loc = hierarchy_match.group(1).strip()
             else:
-                loc_match = re.search(r'\b(?:at|in)\s+(?:the\s+)?([A-Za-z0-9\s]+(?:office|meeting room|workplace|building|site|cabin|canteen|online|premises|desk|conference room|pantr|cafeteria|classroom|park|street))', text, re.IGNORECASE)
-                if loc_match:
-                    inc_loc = loc_match.group(1).strip().title()
-        else:
-            inc_loc = inc_loc.title()
-
+                org_match = re.search(r'\b([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)*\s+(?:Private Limited|Pvt\.? Ltd\.?|Limited|Ltd\.?|Inc\.?|Corporation|Co\.?|School|College|University|Hospital|Office))\b', text, re.IGNORECASE)
+                if org_match:
+                    inc_loc = org_match.group(1).strip().title()
+                else:
+                    loc_match = re.search(r'\b(?:at|in)\s+(?:the\s+)?([A-Za-z0-9\s]+(?:office|meeting room|workplace|building|site|cabin|canteen|online|premises|desk|conference room|pantry|cafeteria|classroom|park|street))', text, re.IGNORECASE)
+                    if loc_match:
+                        inc_loc = loc_match.group(1).strip().title()
+                    else:
+                        # Simple preposition match: "at Hanuai", "in Noida"
+                        simple_prep = re.search(r'\b(?:at|in)\s+([A-Za-z0-9]{3,25})\b', text, re.IGNORECASE)
+                        if simple_prep:
+                            cand_loc = simple_prep.group(1).strip().title()
+                            if cand_loc.lower() not in ("night", "work", "home", "meeting", "the", "that", "this"):
+                                inc_loc = cand_loc
+        # Do NOT call .title() on multi-part hierarchy — preserve casing from narrative
         if inc_loc:
             inc_loc = re.sub(r'^(?:the|a|an|at|in)\s+', '', inc_loc, flags=re.IGNORECASE).strip()
-            inc_loc = inc_loc.title()
-            inc_loc = inc_loc.replace("Hr ", "HR ").replace(" Hr", " HR")
-            if inc_loc.endswith(" Hr"):
-                inc_loc = inc_loc[:-3] + " HR"
-            if inc_loc.startswith("Hr "):
-                inc_loc = "HR " + inc_loc[3:]
-            if inc_loc.lower() == "hr cabin":
-                inc_loc = "HR Cabin"
+            # Fix common acronym casing issues only
+            inc_loc = re.sub(r'\bHr\b', 'HR', inc_loc)
+            inc_loc = re.sub(r'\bSjpu\b', 'SJPU', inc_loc, flags=re.IGNORECASE)
 
         # 8. Witnesses — broad extraction including implicit presence cues (req 1)
         witnesses = []
@@ -627,6 +528,17 @@ class OllamaClient:
             witnesses = [str(w).strip() for w in wit_val if w]
         elif isinstance(wit_val, str) and wit_val.strip():
             witnesses = [w.strip() for w in wit_val.split(",") if w.strip()]
+
+        if not witnesses:
+            # Pattern 0: Direct witness statement e.g. "witness is Harish", "witnesses: Priya, Rahul"
+            wit_direct = re.search(
+                r'\b(?:witness(?:es)?(?:\s+is|\s+are|\s*:)?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)',
+                text, re.IGNORECASE
+            )
+            if wit_direct:
+                cand = wit_direct.group(1).strip().title()
+                if cand.lower() not in ("not", "none", "no", "unknown", "the", "present"):
+                    witnesses = [cand]
 
         if not witnesses:
             # Pattern A: explicit named witness pairs/lists ("colleagues Priya and Rahul", "witnessed by Anjali, Deepak")
@@ -675,7 +587,7 @@ class OllamaClient:
                 r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+was\s+(?:also\s+)?(?:a\s+)?witness\b',
             ]
             for pat in implicit_patterns:
-                m = re.search(pat, text)
+                m = re.search(pat, text, re.IGNORECASE)
                 if m:
                     candidate = m.group(1).strip().title()
                     if candidate.lower() not in ("i", "he", "she", "they", "we",
@@ -683,7 +595,7 @@ class OllamaClient:
                         witnesses = [candidate]
                         break
 
-        # De-duplicate, normalise casing, exclude complainant/respondent
+        # De-duplicate, normalise casing, clean pipe delimiters, exclude complainant/respondent
         _HR_FIXES = {"Hr Manager": "HR Manager", "Hr Staff": "HR Staff", "Sjpu": "SJPU"}
         cleaned_witnesses = []
         seen = set()
@@ -691,16 +603,19 @@ class OllamaClient:
             w_str = _to_str(w)
             if not w_str or w_str.lower() in ("none", "none specified", "null"):
                 continue
+            # If formatted as "Name | Role | Details", isolate the name
+            if "|" in w_str:
+                w_str = w_str.split("|")[0].strip()
             w_title = w_str.title()
             for wrong, right in _HR_FIXES.items():
                 w_title = w_title.replace(wrong, right)
             exclude = [x.lower() for x in (comp_name, resp_name) if x]
-            if w_title.lower() not in exclude and w_title.lower() not in seen:
+            if w_title.lower() not in exclude and w_title.lower() not in seen and len(w_title) > 1:
                 cleaned_witnesses.append(w_title)
                 seen.add(w_title.lower())
         witnesses = cleaned_witnesses
 
-        # 9. Nature of incident — strip generic fallbacks, reject vague stubs (req 3)
+        # 9. Nature of incident — Rule 5: grounded only; no boilerplate injection
         _GENERIC_STUBS = {
             "workplace harassment", "alleged incident of workplace harassment",
             "sexual harassment", "alleged sexual harassment",
@@ -720,7 +635,7 @@ class OllamaClient:
             elif nature_summary:
                 nature_summary = nature_summary[0].upper() + nature_summary[1:]
         if not nature_summary:
-            # Build a minimal but specific fallback from incident facts already extracted
+            # Rule 5: Only add acts that are explicitly present in the text — no boilerplate
             acts_found = []
             low = text.lower()
             if any(k in low for k in ["touch", "physical", "grab", "grope", "hug", "fondle"]):
@@ -729,7 +644,8 @@ class OllamaClient:
                 acts_found.append("verbal remarks of a sexual nature")
             if any(k in low for k in ["message", "whatsapp", "text", "email", "send", "sent"]):
                 acts_found.append("unsolicited sexual messages")
-            if any(k in low for k in ["show", "display", "image", "photo", "video", "explicit"]):
+            # Rule 5: ONLY add 'display of explicit material' if EXPLICITLY stated in text
+            if any(k in low for k in ["explicit material", "showed explicit", "displayed explicit", "pornograph", "csam"]):
                 acts_found.append("display of explicit material")
             if any(k in low for k in ["promise", "promotion", "appraisal", "favour", "threat", "quid pro quo"]):
                 acts_found.append("quid pro quo demands")
@@ -739,6 +655,7 @@ class OllamaClient:
                     f"constituting sexual harassment as defined under the applicable Act."
                 )
             else:
+                # Minimal non-boilerplate fallback — no invented claims
                 nature_summary = (
                     "The complainant alleges conduct by the respondent constituting sexual harassment "
                     "as defined under the applicable Act. Specific details of the alleged acts are "
@@ -945,9 +862,23 @@ class OllamaClient:
     def generate_draft(self, category: str, facts: ExtractedFacts, contexts: List[RetrievedContext]) -> ComplaintDraft:
         """Generate formal complaint draft with fixed standard template."""
         formatted_template = self.format_standard_template(category, facts)
-        
+
+        # Rule 1: Use extracted org name in addressed_to instead of static placeholder
+        org_name = None
+        if facts.incident_location:
+            # Try to extract org name from full location hierarchy
+            org_match = re.search(
+                r'([A-Z][A-Za-z0-9\s]*(?:Pvt\.?\s*Ltd\.?|Private Limited|Limited|Ltd\.?|Inc\.?|Corp\.?|School|College|University|Hospital|Solutions|Technologies|Services|Consultancy|Foundation))',
+                facts.incident_location
+            )
+            if org_match:
+                org_name = org_match.group(1).strip()
+
         if category == "POSH":
-            addressed_to = "The Presiding Officer, Internal Committee (IC), [Organization Name]"
+            if org_name:
+                addressed_to = f"The Presiding Officer, Internal Committee (IC), {org_name}"
+            else:
+                addressed_to = "The Presiding Officer, Internal Committee (IC), [Organization Name]"
         elif category == "POCSO":
             addressed_to = "The Officer-in-Charge, Special Juvenile Police Unit (SJPU) / Local Police Station"
         else:

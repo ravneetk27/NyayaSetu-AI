@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PoSH/POCSO Legal Advisory AI Agent</title>
+    <title>NyayaSetu AI - PoSH & POCSO Compliance Assistant</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css?v=3">
     <link rel="icon" href="data:,">
@@ -15,7 +15,7 @@
             <div class="header-logo">
                 <span class="logo-icon">⚖️</span>
                 <div class="logo-text">
-                    <h1>Legal Advisory AI</h1>
+                    <h1>NyayaSetu AI</h1>
                     <span class="subtitle">PoSH & POCSO Compliance Assistant</span>
                 </div>
             </div>
@@ -30,46 +30,17 @@
 
         <!-- Main Workspace -->
         <main class="app-main">
-            <!-- Left Panel: Input & Interactive Chatbot -->
+            <!-- Left Panel: Incident Narrative & Complaint Drafter -->
             <section class="panel input-panel">
                 <div class="panel-header">
-                    <div class="input-mode-toggle">
-                        <button id="mode-chat-btn" class="mode-btn active">💬 AI Legal Advisor</button>
-                        <button id="mode-text-btn" class="mode-btn">📝 Complaint Drafter</button>
+                    <div class="panel-title-group">
+                        <h2>📝 Incident Narrative</h2>
+                        <span class="header-privacy-tag">🔒 100% Confidential</span>
                     </div>
                 </div>
                 
-                <!-- Mode 1: Interactive Chatbot View (Default) -->
-                <div class="panel-body mode-view" id="chat-mode-view">
-                    <div class="chat-container">
-                        <!-- Message list -->
-                        <div class="chat-messages" id="chat-messages-list">
-                            <div class="chat-msg assistant-msg">
-                                <div class="msg-avatar">🤖</div>
-                                <div class="msg-content">
-                                    <p>Hello, I am your AI Legal Assistant specialized strictly in POSH & POCSO matters. How can I assist you today?</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Chat Input Box -->
-                        <div class="chat-input-row">
-                            <input type="text" id="chat-input" placeholder="Type your message line-by-line..." autocomplete="off">
-                            <button id="chat-send-btn" class="btn btn-primary">Send</button>
-                        </div>
-
-                        <!-- Action Footer -->
-                        <div class="chat-footer-row">
-                            <button id="compile-chat-btn" class="btn btn-primary btn-large">
-                                <span class="spinner" id="analyze-spinner"></span>
-                                <span id="analyze-btn-text">✨ Convert Conversation into Draft Complaint</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Mode 2: Complaint Drafter View -->
-                <div class="panel-body mode-view hidden" id="text-mode-view">
+                <!-- Permanent Complaint Drafter View -->
+                <div class="panel-body mode-view" id="text-mode-view">
                     <textarea id="narrative-input" placeholder="Type or paste the incident narrative here. Include approximate dates, locations, roles, witnesses, or evidence if known..."></textarea>
                     
                     <button id="analyze-btn" class="btn btn-primary btn-large">
@@ -162,9 +133,6 @@
                         <button class="tab-btn active" data-tab="tab-summary">Classification & Facts</button>
                         <button class="tab-btn" data-tab="tab-draft">Generated Draft</button>
                         <button class="tab-btn" data-tab="tab-rag">Statutory Citations</button>
-                        <button id="back-to-chat-btn" class="btn btn-secondary btn-sm hidden" style="margin-left: auto;">
-                            💬 Back to Chat
-                        </button>
                     </div>
 
                     <!-- Tab Contents -->
