@@ -8,3 +8,4 @@ pypdf>=3.9.0
 python-docx>=0.8.11
 gradio>=4.44.0
 huggingface_hub<1.0.0
+spaces

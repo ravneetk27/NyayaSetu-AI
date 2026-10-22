@@ -5,6 +5,16 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR / "backend"))
 
+# ZeroGPU protocol requirement
+try:
+    import spaces
+    @spaces.GPU
+    def zero_gpu_worker():
+        """Satisfies ZeroGPU startup requirement for HF Spaces"""
+        return True
+except Exception:
+    pass
+
 # Auto-ingest vector DB if needed
 try:
     from app.core.rag import LegalRAG
