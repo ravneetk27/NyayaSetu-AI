@@ -22,15 +22,14 @@ from app.main import app as fastapi_app
 import gradio as gr
 import uvicorn
 
-with gr.Blocks(title="NyayaSetu AI") as demo:
-    gr.Markdown("# ⚖️ NyayaSetu AI")
-    gr.Markdown("Web portal active at `/`.")
+# Build Gradio Blocks that hosts our custom web UI cleanly inside the HF Space iframe
+with gr.Blocks(title="NyayaSetu AI", css=".gradio-container {max-width: 100% !important; padding: 0 !important; margin: 0 !important;} footer {display: none !important;}") as demo:
+    gr.HTML('<iframe src="/web" style="width: 100vw; height: 98vh; border: none; margin: 0; padding: 0;"></iframe>')
 
-# Mount Gradio app into FastAPI
-app = gr.mount_gradio_app(fastapi_app, demo, path="/gradio")
+# Mount Gradio at root "/" so Hugging Face Spaces healthcheck finds /config and stays healthy
+app = gr.mount_gradio_app(fastapi_app, demo, path="/")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 7860))
     print(f"Starting server on port {port}...")
-    # Pass the app instance directly to avoid ambiguous module string import
     uvicorn.run(app, host="0.0.0.0", port=port)

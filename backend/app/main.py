@@ -36,5 +36,7 @@ def health_check():
 frontend_path = BASE_DIR / "frontend"
 frontend_path.mkdir(parents=True, exist_ok=True)
 
-# Mount static files at root
+# Mount static files at /web and /
+app.mount("/web", StaticFiles(directory=str(frontend_path), html=True), name="frontend_web")
 app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
+
