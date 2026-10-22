@@ -3,16 +3,15 @@ services:
     name: nyayasetu-ai
     runtime: python
     plan: free
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r backend/requirements.txt
     startCommand: python backend/run.py
     envVars:
       - key: HOST
         value: "0.0.0.0"
-      - key: PORT
-        value: "8000"
       - key: GROQ_API_KEY
         sync: false          # Set this secret in Render dashboard
       - key: LLM_MODEL
-        value: llama-3.1-8b-instant
+        value: qwen/qwen3.8-27b
       - key: EMBEDDING_MODEL_NAME
         value: sentence-transformers/all-MiniLM-L6-v2
+
