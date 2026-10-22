@@ -3,8 +3,9 @@ title: NyayaSetu AI
 emoji: ⚖️
 colorFrom: indigo
 colorTo: blue
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 4.44.0
+app_file: app.py
 pinned: false
 ---
 
