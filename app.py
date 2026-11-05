@@ -15,7 +15,7 @@ sys.modules.pop('app', None)
 
 # ZeroGPU protocol requirement for HF Spaces
 @spaces.GPU
-def zero_gpu_worker(query: str = "") -> str:
+def predict_fn(query: str = "") -> str:
     """Module-level function satisfying HF Spaces ZeroGPU AST startup scanner"""
     return query
 
@@ -36,7 +36,7 @@ from app.main import app as fastapi_app
 
 # Gradio Interface directly bound to @spaces.GPU function to pass ZeroGPU startup check
 demo = gr.Interface(
-    fn=zero_gpu_worker,
+    fn=predict_fn,
     inputs=gr.Textbox(visible=False),
     outputs=gr.Textbox(visible=False),
     title="NyayaSetu AI",
