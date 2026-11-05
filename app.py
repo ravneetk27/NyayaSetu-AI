@@ -50,9 +50,9 @@ app = gr.mount_gradio_app(fastapi_app, demo, path="/")
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 7860))
     print(f"Starting server on port {port}...")
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 7860))
-    print(f"Starting server on port {port}...")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    except OSError as e:
+        alt_port = 7860 if port != 7860 else 7861
+        print(f"Port {port} in use ({e}), falling back to port {alt_port}...")
+        uvicorn.run(app, host="0.0.0.0", port=alt_port)
