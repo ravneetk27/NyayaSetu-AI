@@ -47,12 +47,23 @@ demo = gr.Interface(
 # Mount Gradio at root "/" so Hugging Face Spaces healthcheck finds /config and stays healthy
 app = gr.mount_gradio_app(fastapi_app, demo, path="/")
 
+import socket
+
+def find_available_port(preferred=7860):
+    # HF Spaces routes external traffic to 7860
+    candidates = [7860, 7862, 7863, 8000]
+    if preferred and preferred not in candidates and preferred != 7861:
+        candidates.insert(0, preferred)
+    for p in candidates:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("0.0.0.0", p))
+                return p
+        except OSError:
+            continue
+    return 7860
+
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 7860))
+    port = find_available_port()
     print(f"Starting server on port {port}...")
-    try:
-        uvicorn.run(app, host="0.0.0.0", port=port)
-    except OSError as e:
-        alt_port = 7860 if port != 7860 else 7861
-        print(f"Port {port} in use ({e}), falling back to port {alt_port}...")
-        uvicorn.run(app, host="0.0.0.0", port=alt_port)
+    uvicorn.run(app, host="0.0.0.0", port=port)
