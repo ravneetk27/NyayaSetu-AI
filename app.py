@@ -3,17 +3,23 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(BASE_DIR / "backend"))
+backend_path = str(BASE_DIR / "backend")
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
 
-# ZeroGPU protocol requirement
+# Ensure 'app' package resolves to backend/app rather than this root file
+sys.modules.pop('app', None)
+
+# ZeroGPU protocol requirement for HF Spaces (works seamlessly on CPU or ZeroGPU)
+def _zero_gpu_worker(text: str = "") -> str:
+    """Satisfies ZeroGPU startup requirement for HF Spaces"""
+    return text
+
 try:
     import spaces
-    @spaces.GPU
-    def zero_gpu_worker():
-        """Satisfies ZeroGPU startup requirement for HF Spaces"""
-        return True
+    zero_gpu_worker = spaces.GPU(_zero_gpu_worker)
 except Exception:
-    pass
+    zero_gpu_worker = _zero_gpu_worker
 
 # Auto-ingest vector DB if needed
 try:
@@ -34,6 +40,12 @@ import uvicorn
 
 # Build Gradio Blocks that hosts our custom web UI cleanly inside the HF Space iframe
 with gr.Blocks(title="NyayaSetu AI", css=".gradio-container {max-width: 100% !important; padding: 0 !important; margin: 0 !important;} footer {display: none !important;}") as demo:
+    # Hidden components hooked to zero_gpu_worker to satisfy HF ZeroGPU startup scan
+    _z_in = gr.Textbox(visible=False, elem_id="zero_gpu_probe_in")
+    _z_out = gr.Textbox(visible=False, elem_id="zero_gpu_probe_out")
+    _z_btn = gr.Button(visible=False, elem_id="zero_gpu_probe_btn")
+    _z_btn.click(zero_gpu_worker, inputs=[_z_in], outputs=[_z_out])
+
     gr.HTML('<iframe src="/web" style="width: 100vw; height: 98vh; border: none; margin: 0; padding: 0;"></iframe>')
 
 # Mount Gradio at root "/" so Hugging Face Spaces healthcheck finds /config and stays healthy
